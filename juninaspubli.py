@@ -2,19 +2,17 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from streamlit_autorefresh import st_autorefresh
 from datetime import datetime
 import unicodedata
+import re
 
 st.set_page_config(
-    page_title="Dashboard Operacional - Festas Juninas",
+    page_title="Operação - São João 2026",
     page_icon="🚔",
     layout="wide"
 )
 
-st.title("🚔 DASHBOARD OPERACIONAL - FESTAS JUNINAS")
-
-st_autorefresh(interval=15000, key="refresh_dashboard")
+st.title("🚔 Operação - São João 2026")
 
 url = (
     "https://docs.google.com/spreadsheets/d/"
@@ -22,19 +20,27 @@ url = (
     "export?format=csv&gid=1996198248"
 )
 
-FUNDO_PRETO = "#0E1117"
+PALETA_BARRAS = [
+    "#5B8FF9", "#61DDAA", "#65789B", "#F6BD16", "#7262FD",
+    "#78D3F8", "#9661BC", "#F6903D", "#008685", "#F08BB4"
+]
 
-PALETA_GRAFICO_1 = ["#48CAE4", "#ADE8F4"]  # azul/ciano mais claro
-PALETA_GRAFICO_2 = ["#F6BD60", "#F7C59F"]  # dourado/laranja mais claro
-PALETA_GRAFICO_3 = ["#52B788", "#95D5B2"]  # verde mais claro
-PALETA_GRAFICO_4 = ["#C77DFF", "#E0AAFF"]  # roxo/lilás mais claro
+PALETA_PIZZA = [
+    "#5B8FF9", "#61DDAA", "#F6BD16", "#7262FD", "#F08BB4", "#78D3F8"
+]
+
+COR_BARRA_UNICA = "#5B8FF9"
+COR_LINHA_1 = "#5B8FF9"
+COR_LINHA_2 = "#61DDAA"
+COR_HISTOGRAMA = "#9CC3FF"
 
 def normalizar_texto(texto):
     texto = str(texto).strip().upper()
     texto = unicodedata.normalize("NFKD", texto).encode("ASCII", "ignore").decode("utf-8")
+    texto = re.sub(r"\s+", " ", texto)
     return texto
 
-@st.cache_data(ttl=10)
+@st.cache_data(ttl=60)
 def carregar_dados():
     df = pd.read_csv(url)
     df = df.dropna(how="all")
@@ -49,15 +55,39 @@ def localizar_coluna(colunas, termos):
                 return c
     return None
 
+def converter_numero_misto(valor):
+    if pd.isna(valor):
+        return pd.NA
+
+    s = str(valor).strip()
+    if s == "":
+        return pd.NA
+
+    s = s.replace(" ", "")
+    s = re.sub(r"[R$\u00A0]", "", s)
+
+    if "," in s and "." in s:
+        if s.rfind(",") > s.rfind("."):
+            s = s.replace(".", "")
+            s = s.replace(",", ".")
+        else:
+            s = s.replace(",", "")
+    elif "," in s:
+        s = s.replace(".", "")
+        s = s.replace(",", ".")
+    else:
+        s = s.replace(",", "")
+
+    s = re.sub(r"[^0-9\.-]", "", s)
+
+    try:
+        return float(s)
+    except:
+        return pd.NA
+
 def tratar_coluna_numerica(df, coluna):
     if coluna and coluna in df.columns:
-        df[coluna] = (
-            df[coluna]
-            .astype(str)
-            .str.replace(".", "", regex=False)
-            .str.replace(",", ".", regex=False)
-            .str.replace(" ", "", regex=False)
-        )
+        df[coluna] = df[coluna].apply(converter_numero_misto)
         df[coluna] = pd.to_numeric(df[coluna], errors="coerce")
     return df
 
@@ -72,66 +102,73 @@ def tratar_coluna_categorica(df, coluna):
             df[coluna]
             .astype(str)
             .str.strip()
-            .replace(["", "NAN", "None", "none", "nan"], pd.NA)
+            .replace(["", "NAN", "None", "none", "nan", "<NA>"], pd.NA)
         )
     return df
 
-def classificar_cobranca(valor):
+def normalizar_cobranca(valor):
     if pd.isna(valor):
-        return "NÃO INFORMADO"
+        return pd.NA
 
-    texto = normalizar_texto(valor)
+    txt = normalizar_texto(valor)
 
-    if texto in ["", "NAN", "NONE", "NULL", "NA"]:
-        return "NÃO INFORMADO"
+    if txt in ["", "NAN", "NONE", "NULL", "NA", "<NA>"]:
+        return pd.NA
 
-    termos_nao = {
-        "NAO", "NÃO", "SEM COBRANCA", "SEM COBRANÇA", "GRATUITO", "GRATUITA",
-        "LIVRE", "FRANQUEADO", "ISENTO", "ISENTA", "ENTRADA FRANCA",
-        "ACESSO LIVRE", "SEM PAGAMENTO", "NAO COBRA", "NAO PAGO"
+    mapa_nao = {
+        "NAO", "NAO PAGO", "SEM COBRANCA", "SEM COBRANCA DE INGRESSO",
+        "GRATUITO", "GRATUITA", "LIVRE", "ISENTO", "ISENTA",
+        "FRANQUEADO", "FRANQUEADA", "ENTRADA FRANCA", "SEM PAGAMENTO"
     }
 
-    termos_sim = {
-        "SIM", "COBRADO", "COBRANCA", "COBRANÇA", "PAGO", "PAGA",
-        "PAGAMENTO", "INGRESSO PAGO", "COM COBRANCA", "COM COBRANÇA",
-        "COBRA", "PAGANTE", "BILHETERIA"
+    mapa_sim = {
+        "SIM", "COBRADO", "COBRANCA", "PAGO", "PAGA", "PAGAMENTO",
+        "INGRESSO PAGO", "COM COBRANCA", "PAGOU", "PAGA ENTRADA",
+        "VENDA DE INGRESSO", "COBRANCA DE INGRESSO"
     }
 
-    if texto in termos_nao:
+    if txt in mapa_nao:
         return "NÃO"
-
-    if texto in termos_sim:
+    if txt in mapa_sim:
         return "SIM"
 
-    if "SEM COBRAN" in texto or "GRATUIT" in texto or "ISENT" in texto or "LIVRE" in texto:
+    if "SEM COBRANCA" in txt or "GRATUIT" in txt or "ENTRADA FRANCA" in txt:
         return "NÃO"
-
-    if "COBRAN" in texto or "PAG" in texto or "INGRESSO" in texto or "BILHETERIA" in texto:
+    if "COBRAN" in txt or "PAG" in txt or "INGRESSO" in txt:
         return "SIM"
 
-    return "NÃO INFORMADO"
+    return pd.NA
 
-def formatar_milhares(valor):
-    if pd.isna(valor):
-        return "0"
-    return f"{int(round(valor)):,}".replace(",", ".")
-
-def gerar_cores_alternadas(qtd, paleta):
-    return [paleta[i % len(paleta)] for i in range(qtd)]
-
-def aplicar_layout_escuro(fig, xaxis_title="", yaxis_title="", showlegend=False, legend_title=None):
+def aplicar_estilo(fig):
     fig.update_layout(
-        template="plotly_dark",
-        plot_bgcolor=FUNDO_PRETO,
-        paper_bgcolor=FUNDO_PRETO,
-        font=dict(color="white"),
-        xaxis_title=xaxis_title,
-        yaxis_title=yaxis_title,
-        showlegend=showlegend,
-        legend_title=legend_title
+        template="simple_white",
+        plot_bgcolor="white",
+        paper_bgcolor="white",
+        font=dict(size=13, color="#3B4A5A"),
+        bargap=0.22,
+        margin=dict(l=20, r=20, t=50, b=20),
+        xaxis=dict(
+            showgrid=False,
+            zeroline=False,
+            linecolor="#D9E2EC",
+            tickfont=dict(color="#52606D")
+        ),
+        yaxis=dict(
+            showgrid=True,
+            gridcolor="#EEF2F7",
+            zeroline=False,
+            linecolor="#D9E2EC",
+            tickfont=dict(color="#52606D")
+        ),
+        legend=dict(
+            bgcolor="rgba(0,0,0,0)",
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1
+        )
     )
-    fig.update_xaxes(showgrid=False)
-    fig.update_yaxes(showgrid=True, gridcolor="rgba(255,255,255,0.10)")
     return fig
 
 try:
@@ -139,7 +176,7 @@ try:
     horario = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
 
     st.sidebar.success("🟢 Dashboard sincronizado")
-    st.sidebar.info(f"Atualização automática ativa\n\nÚltima atualização:\n{horario}")
+    st.sidebar.info(f"Última atualização da carga:\n{horario}")
 
     colunas = df.columns.tolist()
 
@@ -150,7 +187,6 @@ try:
     coluna_data = localizar_coluna(colunas, ["DATA"])
     coluna_natureza = localizar_coluna(colunas, ["NATUREZA"])
     coluna_tipo_publico = localizar_coluna(colunas, ["TIPO DE PUBLICO", "TIPO PUBLICO"])
-
     coluna_cobranca = colunas[19] if len(colunas) > 19 else None
 
     df = tratar_coluna_numerica(df, coluna_publico)
@@ -159,14 +195,14 @@ try:
     df = tratar_coluna_categorica(df, coluna_natureza)
     df = tratar_coluna_categorica(df, coluna_cobranca)
 
+    if coluna_cobranca and coluna_cobranca in df.columns:
+        df[coluna_cobranca] = df[coluna_cobranca].apply(normalizar_cobranca)
+
     if coluna_data and coluna_data in df.columns:
         df = df[df[coluna_data].notna()].copy()
 
         df["Ano"] = df[coluna_data].dt.year
         df["Mes_Num"] = df[coluna_data].dt.month
-
-        df["Ano"] = pd.to_numeric(df["Ano"], errors="coerce").astype("Int64")
-        df["Mes_Num"] = pd.to_numeric(df["Mes_Num"], errors="coerce").astype("Int64")
 
         df = df[df["Ano"] != 2022].copy()
         df = df[df["Mes_Num"].isin([5, 6, 7, 8])].copy()
@@ -187,40 +223,27 @@ try:
 
     if "Ano" in df_filtrado.columns and df_filtrado["Ano"].notna().any():
         opcoes_ano = sorted(df_filtrado["Ano"].dropna().astype(int).unique().tolist())
-        anos_sel = st.sidebar.multiselect(
-            "Filtrar Ano(s)",
-            options=opcoes_ano,
-            default=opcoes_ano
-        )
-
+        anos_sel = st.sidebar.multiselect("Filtrar Ano", options=opcoes_ano, default=[])
         if anos_sel:
             df_filtrado = df_filtrado[df_filtrado["Ano"].isin(anos_sel)]
-        else:
-            df_filtrado = df_filtrado.iloc[0:0]
 
     if coluna_comando:
-        opcoes_comando = sorted(df_filtrado[coluna_comando].dropna().astype(str).unique())
-        opcoes_comando = ["Todos"] + opcoes_comando
-        comando_sel = st.sidebar.selectbox("Filtrar Comando", opcoes_comando, index=0)
-
-        if comando_sel != "Todos":
-            df_filtrado = df_filtrado[df_filtrado[coluna_comando].astype(str) == comando_sel]
+        opcoes_comando = sorted(df_filtrado[coluna_comando].dropna().astype(str).unique().tolist())
+        comandos_sel = st.sidebar.multiselect("Filtrar Comando", options=opcoes_comando, default=[])
+        if comandos_sel:
+            df_filtrado = df_filtrado[df_filtrado[coluna_comando].astype(str).isin(comandos_sel)]
 
     if coluna_cidade:
-        opcoes_cidade = sorted(df_filtrado[coluna_cidade].dropna().astype(str).unique())
-        opcoes_cidade = ["Todos"] + opcoes_cidade
-        cidade_sel = st.sidebar.selectbox("Filtrar Cidade", opcoes_cidade, index=0)
-
-        if cidade_sel != "Todos":
-            df_filtrado = df_filtrado[df_filtrado[coluna_cidade].astype(str) == cidade_sel]
+        opcoes_cidade = sorted(df_filtrado[coluna_cidade].dropna().astype(str).unique().tolist())
+        cidades_sel = st.sidebar.multiselect("Filtrar Cidade", options=opcoes_cidade, default=[])
+        if cidades_sel:
+            df_filtrado = df_filtrado[df_filtrado[coluna_cidade].astype(str).isin(cidades_sel)]
 
     if coluna_natureza:
-        opcoes_natureza = sorted(df_filtrado[coluna_natureza].dropna().astype(str).unique())
-        opcoes_natureza = ["Todos"] + opcoes_natureza
-        natureza_sel = st.sidebar.selectbox("Filtrar Natureza", opcoes_natureza, index=0)
-
-        if natureza_sel != "Todos":
-            df_filtrado = df_filtrado[df_filtrado[coluna_natureza].astype(str) == natureza_sel]
+        opcoes_natureza = sorted(df_filtrado[coluna_natureza].dropna().astype(str).unique().tolist())
+        natureza_sel = st.sidebar.multiselect("Filtrar Natureza", options=opcoes_natureza, default=[])
+        if natureza_sel:
+            df_filtrado = df_filtrado[df_filtrado[coluna_natureza].astype(str).isin(natureza_sel)]
 
     if coluna_data and df_filtrado[coluna_data].notna().any():
         data_min = df_filtrado[coluna_data].min().date()
@@ -240,12 +263,11 @@ try:
                 (df_filtrado[coluna_data].dt.date <= data_fim)
             ]
 
-    st.subheader("📚 Série Histórica Consolidada")
+    st.subheader("📚 Panorama Geral")
     st.caption("Os gráficos abaixo permanecem fixos e não são alterados pelos filtros operacionais da barra lateral.")
 
     if "Ano" in df_historico.columns and df_historico["Ano"].notna().any():
         st.markdown("### 📊 Comparativo de Eventos por Ano")
-
         eventos_ano = (
             df_historico.dropna(subset=["Ano"])
             .groupby("Ano")
@@ -253,36 +275,23 @@ try:
             .reset_index(name="Eventos")
             .sort_values("Ano")
         )
-
-        eventos_ano["Ano"] = eventos_ano["Ano"].astype(int).astype(str)
+        eventos_ano["Ano"] = eventos_ano["Ano"].astype(str)
 
         fig = px.bar(
             eventos_ano,
             x="Ano",
             y="Eventos",
-            text_auto=True
+            color="Ano",
+            text_auto=True,
+            color_discrete_sequence=PALETA_BARRAS,
+            template="simple_white"
         )
-
-        fig.update_traces(
-            marker_color=gerar_cores_alternadas(len(eventos_ano), PALETA_GRAFICO_1),
-            textposition="outside",
-            marker_line_color="rgba(255,255,255,0.45)",
-            marker_line_width=0.8
-        )
-
-        fig = aplicar_layout_escuro(
-            fig,
-            xaxis_title="Ano",
-            yaxis_title="Eventos",
-            showlegend=False
-        )
-        fig.update_xaxes(type="category")
-
+        fig.update_layout(xaxis_title="Ano", yaxis_title="Eventos", showlegend=False)
+        fig = aplicar_estilo(fig)
         st.plotly_chart(fig, use_container_width=True)
 
     if "Ano" in df_historico.columns and coluna_publico and df_historico["Ano"].notna().any():
         st.markdown("### 👥 Público Previsto por Ano")
-
         publico_ano = (
             df_historico.dropna(subset=["Ano"])
             .groupby("Ano")[coluna_publico]
@@ -290,37 +299,23 @@ try:
             .reset_index()
             .sort_values("Ano")
         )
-
-        publico_ano["Ano"] = publico_ano["Ano"].astype(int).astype(str)
-        publico_ano["Publico_Label"] = publico_ano[coluna_publico].apply(formatar_milhares)
+        publico_ano["Ano"] = publico_ano["Ano"].astype(str)
 
         fig = px.bar(
             publico_ano,
             x="Ano",
             y=coluna_publico,
-            text="Publico_Label"
+            color="Ano",
+            text_auto=".2s",
+            color_discrete_sequence=PALETA_BARRAS,
+            template="simple_white"
         )
-
-        fig.update_traces(
-            marker_color=gerar_cores_alternadas(len(publico_ano), PALETA_GRAFICO_2),
-            textposition="outside",
-            marker_line_color="rgba(255,255,255,0.45)",
-            marker_line_width=0.8
-        )
-
-        fig = aplicar_layout_escuro(
-            fig,
-            xaxis_title="Ano",
-            yaxis_title="Público Previsto",
-            showlegend=False
-        )
-        fig.update_xaxes(type="category")
-
+        fig.update_layout(xaxis_title="Ano", yaxis_title="Público Previsto", showlegend=False)
+        fig = aplicar_estilo(fig)
         st.plotly_chart(fig, use_container_width=True)
 
     if "Ano" in df_historico.columns and "Mes_Num" in df_historico.columns and df_historico["Ano"].notna().any():
         st.markdown("### 📅 Comparativo de Eventos por Mês e Ano")
-
         eventos_mes_ano = (
             df_historico.dropna(subset=["Ano", "Mes_Num"])
             .groupby(["Ano", "Mes_Num", "Mes_Abrev"])
@@ -329,13 +324,14 @@ try:
             .sort_values(["Ano", "Mes_Num"])
         )
 
-        eventos_mes_ano["Ano"] = eventos_mes_ano["Ano"].astype(int).astype(str)
-
-        anos_ordenados = sorted(eventos_mes_ano["Ano"].dropna().unique())
-        mapa_cores = {
-            ano: PALETA_GRAFICO_3[i % len(PALETA_GRAFICO_3)]
-            for i, ano in enumerate(anos_ordenados)
-        }
+        ordem_meses_abrev = ["Mai", "Jun", "Jul", "Ago"]
+        eventos_mes_ano["Mes_Abrev"] = pd.Categorical(
+            eventos_mes_ano["Mes_Abrev"],
+            categories=ordem_meses_abrev,
+            ordered=True
+        )
+        eventos_mes_ano["Ano"] = eventos_mes_ano["Ano"].astype(str)
+        eventos_mes_ano = eventos_mes_ano.sort_values(["Ano", "Mes_Abrev"])
 
         fig = px.bar(
             eventos_mes_ano,
@@ -344,27 +340,15 @@ try:
             color="Ano",
             barmode="group",
             text_auto=True,
-            color_discrete_map=mapa_cores
+            color_discrete_sequence=PALETA_BARRAS,
+            template="simple_white"
         )
-
-        fig.update_traces(
-            marker_line_color="rgba(255,255,255,0.45)",
-            marker_line_width=0.8
-        )
-
-        fig = aplicar_layout_escuro(
-            fig,
-            xaxis_title="Mês",
-            yaxis_title="Eventos",
-            showlegend=True,
-            legend_title="Ano"
-        )
-
+        fig.update_layout(xaxis_title="Mês", yaxis_title="Eventos", legend_title="Ano")
+        fig = aplicar_estilo(fig)
         st.plotly_chart(fig, use_container_width=True)
 
     if "AnoMes" in df_historico.columns and df_historico["AnoMes"].notna().any():
         st.markdown("### 📌 Eventos por Ano-Mês")
-
         ordem_meses = (
             df_historico.dropna(subset=["Ano", "Mes_Num", "AnoMes"])
             [["Ano", "Mes_Num", "AnoMes"]]
@@ -386,29 +370,19 @@ try:
             ordered=True
         )
         eventos_anomes = eventos_anomes.sort_values("AnoMes")
+        eventos_anomes["AnoMes_str"] = eventos_anomes["AnoMes"].astype(str)
 
         fig = px.bar(
             eventos_anomes,
             x="AnoMes",
             y="Eventos",
-            text_auto=True
+            color="AnoMes_str",
+            text_auto=True,
+            color_discrete_sequence=PALETA_BARRAS,
+            template="simple_white"
         )
-
-        fig.update_traces(
-            marker_color=gerar_cores_alternadas(len(eventos_anomes), PALETA_GRAFICO_4),
-            textposition="outside",
-            marker_line_color="rgba(255,255,255,0.45)",
-            marker_line_width=0.8
-        )
-
-        fig = aplicar_layout_escuro(
-            fig,
-            xaxis_title="Ano-Mês",
-            yaxis_title="Eventos",
-            showlegend=False
-        )
-        fig.update_xaxes(type="category")
-
+        fig.update_layout(xaxis_title="Ano-Mês", yaxis_title="Eventos", showlegend=False)
+        fig = aplicar_estilo(fig)
         st.plotly_chart(fig, use_container_width=True)
 
     if df_filtrado.empty:
@@ -418,9 +392,9 @@ try:
     st.subheader("📌 Indicadores Operacionais")
 
     total_eventos = len(df_filtrado)
-    total_publico = int(df_filtrado[coluna_publico].sum()) if coluna_publico and coluna_publico in df_filtrado.columns and not df_filtrado.empty else 0
-    total_cidades = df_filtrado[coluna_cidade].nunique() if coluna_cidade and coluna_cidade in df_filtrado.columns and not df_filtrado.empty else 0
-    total_comandos = df_filtrado[coluna_comando].nunique() if coluna_comando and coluna_comando in df_filtrado.columns and not df_filtrado.empty else 0
+    total_publico = int(df_filtrado[coluna_publico].sum()) if coluna_publico and coluna_publico in df_filtrado.columns else 0
+    total_cidades = df_filtrado[coluna_cidade].nunique() if coluna_cidade and coluna_cidade in df_filtrado.columns else 0
+    total_comandos = df_filtrado[coluna_comando].nunique() if coluna_comando and coluna_comando in df_filtrado.columns else 0
 
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("🎉 Eventos", total_eventos)
@@ -430,7 +404,6 @@ try:
 
     if coluna_natureza:
         st.subheader("🎭 Eventos por Natureza")
-
         natureza_eventos = (
             df_filtrado.dropna(subset=[coluna_natureza])
             .groupby(coluna_natureza)
@@ -438,14 +411,19 @@ try:
             .reset_index(name="Eventos")
             .sort_values(by="Eventos", ascending=False)
         )
-
         fig = px.pie(
             natureza_eventos,
             names=coluna_natureza,
             values="Eventos",
-            hole=0.4
+            hole=0.45,
+            color_discrete_sequence=PALETA_PIZZA,
+            template="simple_white"
         )
-        fig.update_traces(textinfo="percent+label")
+        fig.update_traces(
+            textinfo="percent+label",
+            marker=dict(line=dict(color="white", width=2))
+        )
+        fig = aplicar_estilo(fig)
         st.plotly_chart(fig, use_container_width=True)
 
     if coluna_tipo_publico:
@@ -461,19 +439,23 @@ try:
             pizza_publico,
             names=coluna_tipo_publico,
             values="Quantidade",
-            hole=0.4
+            hole=0.45,
+            color_discrete_sequence=PALETA_PIZZA,
+            template="simple_white"
         )
-        fig.update_traces(textinfo="percent+label")
+        fig.update_traces(
+            textinfo="percent+label",
+            marker=dict(line=dict(color="white", width=2))
+        )
+        fig = aplicar_estilo(fig)
         st.plotly_chart(fig, use_container_width=True)
 
-    if coluna_cobranca:
+    if coluna_cobranca and coluna_cobranca in df_filtrado.columns:
         st.subheader("🎟️ Tipo de Cobrança de Ingresso")
 
-        cobranca_df = df_filtrado.copy()
-        cobranca_df["Cobranca_Ajustada"] = cobranca_df[coluna_cobranca].apply(classificar_cobranca)
-
         pizza_cobranca = (
-            cobranca_df.groupby("Cobranca_Ajustada")
+            df_filtrado.dropna(subset=[coluna_cobranca])
+            .groupby(coluna_cobranca)
             .size()
             .reset_index(name="Quantidade")
             .sort_values(by="Quantidade", ascending=False)
@@ -482,20 +464,20 @@ try:
         if not pizza_cobranca.empty:
             fig = px.pie(
                 pizza_cobranca,
-                names="Cobranca_Ajustada",
+                names=coluna_cobranca,
                 values="Quantidade",
-                hole=0.4,
-                color="Cobranca_Ajustada",
-                color_discrete_map={
-                    "SIM": "#FF6B6B",
-                    "NÃO": "#80ED99",
-                    "NÃO INFORMADO": "#B0B0B0"
-                }
+                hole=0.45,
+                color_discrete_sequence=["#61DDAA", "#F6BD16"],
+                template="simple_white"
             )
-            fig.update_traces(textinfo="percent+label")
+            fig.update_traces(
+                textinfo="percent+label",
+                marker=dict(line=dict(color="white", width=2))
+            )
+            fig = aplicar_estilo(fig)
             st.plotly_chart(fig, use_container_width=True)
         else:
-            st.info("Não há dados válidos para o gráfico de cobrança de ingresso.")
+            st.info("Não há dados válidos para o campo de cobrança com os filtros atuais.")
 
     if coluna_comando:
         st.subheader("🚔 Comandos com Mais Eventos")
@@ -505,7 +487,19 @@ try:
             .reset_index(name="Eventos")
             .sort_values(by="Eventos", ascending=False)
         )
-        fig = px.bar(comando_eventos, x=coluna_comando, y="Eventos", color="Eventos", text_auto=True)
+        comando_eventos["categoria_cor"] = comando_eventos[coluna_comando].astype(str)
+
+        fig = px.bar(
+            comando_eventos,
+            x=coluna_comando,
+            y="Eventos",
+            color="categoria_cor",
+            text_auto=True,
+            color_discrete_sequence=PALETA_BARRAS,
+            template="simple_white"
+        )
+        fig.update_layout(showlegend=False)
+        fig = aplicar_estilo(fig)
         st.plotly_chart(fig, use_container_width=True)
 
     if coluna_cidade:
@@ -517,7 +511,19 @@ try:
             .sort_values(by="Eventos", ascending=False)
             .head(15)
         )
-        fig = px.bar(cidade_eventos, x=coluna_cidade, y="Eventos", color="Eventos", text_auto=True)
+        cidade_eventos["categoria_cor"] = cidade_eventos[coluna_cidade].astype(str)
+
+        fig = px.bar(
+            cidade_eventos,
+            x=coluna_cidade,
+            y="Eventos",
+            color="categoria_cor",
+            text_auto=True,
+            color_discrete_sequence=PALETA_BARRAS,
+            template="simple_white"
+        )
+        fig.update_layout(showlegend=False)
+        fig = aplicar_estilo(fig)
         st.plotly_chart(fig, use_container_width=True)
 
     if coluna_evento and coluna_publico:
@@ -529,12 +535,31 @@ try:
             .sort_values(by=coluna_publico, ascending=False)
             .head(10)
         )
-        fig = px.bar(eventos_publico, x=coluna_evento, y=coluna_publico, color=coluna_publico, text_auto=True)
+        eventos_publico["categoria_cor"] = eventos_publico[coluna_evento].astype(str)
+
+        fig = px.bar(
+            eventos_publico,
+            x=coluna_evento,
+            y=coluna_publico,
+            color="categoria_cor",
+            text_auto=".2s",
+            color_discrete_sequence=PALETA_BARRAS,
+            template="simple_white"
+        )
+        fig.update_layout(showlegend=False)
+        fig = aplicar_estilo(fig)
         st.plotly_chart(fig, use_container_width=True)
 
     if coluna_publico:
         st.subheader("📊 Distribuição do Público Previsto")
-        fig = px.histogram(df_filtrado, x=coluna_publico, nbins=20)
+        fig = px.histogram(
+            df_filtrado,
+            x=coluna_publico,
+            nbins=20,
+            color_discrete_sequence=[COR_HISTOGRAMA],
+            template="simple_white"
+        )
+        fig = aplicar_estilo(fig)
         st.plotly_chart(fig, use_container_width=True)
 
     if coluna_comando and coluna_publico:
@@ -545,7 +570,19 @@ try:
             .reset_index()
             .sort_values(by=coluna_publico, ascending=False)
         )
-        fig = px.bar(publico_comando, x=coluna_comando, y=coluna_publico, color=coluna_publico, text_auto=True)
+        publico_comando["categoria_cor"] = publico_comando[coluna_comando].astype(str)
+
+        fig = px.bar(
+            publico_comando,
+            x=coluna_comando,
+            y=coluna_publico,
+            color="categoria_cor",
+            text_auto=".2s",
+            color_discrete_sequence=PALETA_BARRAS,
+            template="simple_white"
+        )
+        fig.update_layout(showlegend=False)
+        fig = aplicar_estilo(fig)
         st.plotly_chart(fig, use_container_width=True)
 
     if coluna_cidade:
@@ -557,8 +594,19 @@ try:
             .sort_values(by="Eventos", ascending=False)
             .head(10)
         )
-        fig = px.pie(pizza_cidade, names=coluna_cidade, values="Eventos", hole=0.4)
-        fig.update_traces(textinfo="percent+label")
+        fig = px.pie(
+            pizza_cidade,
+            names=coluna_cidade,
+            values="Eventos",
+            hole=0.45,
+            color_discrete_sequence=PALETA_PIZZA,
+            template="simple_white"
+        )
+        fig.update_traces(
+            textinfo="percent+label",
+            marker=dict(line=dict(color="white", width=2))
+        )
+        fig = aplicar_estilo(fig)
         st.plotly_chart(fig, use_container_width=True)
 
     if coluna_cidade and coluna_publico:
@@ -570,7 +618,18 @@ try:
             .sort_values(by=coluna_publico, ascending=False)
             .head(15)
         )
-        fig = px.line(media_cidade, x=coluna_cidade, y=coluna_publico, markers=True)
+        fig = px.line(
+            media_cidade,
+            x=coluna_cidade,
+            y=coluna_publico,
+            markers=True,
+            template="simple_white"
+        )
+        fig.update_traces(
+            line=dict(color=COR_LINHA_1, width=3),
+            marker=dict(size=7, color=COR_LINHA_1)
+        )
+        fig = aplicar_estilo(fig)
         st.plotly_chart(fig, use_container_width=True)
 
         st.subheader("🌡️ Intensidade de Público por Cidade")
@@ -587,16 +646,11 @@ try:
                 z=[mapa_df[coluna_publico].tolist()],
                 x=mapa_df[coluna_cidade].astype(str).tolist(),
                 y=["Público"],
-                colorscale="Reds"
+                colorscale="Blues"
             )
         )
-        fig_heat.update_layout(
-            height=450,
-            template="plotly_dark",
-            plot_bgcolor=FUNDO_PRETO,
-            paper_bgcolor=FUNDO_PRETO,
-            font=dict(color="white")
-        )
+        fig_heat.update_layout(height=450, template="simple_white")
+        fig_heat = aplicar_estilo(fig_heat)
         st.plotly_chart(fig_heat, use_container_width=True)
 
     if coluna_data and coluna_publico and df_filtrado[coluna_data].notna().any():
@@ -608,7 +662,18 @@ try:
             .reset_index()
             .sort_values(coluna_data)
         )
-        fig = px.line(evolucao, x=coluna_data, y=coluna_publico, markers=True)
+        fig = px.line(
+            evolucao,
+            x=coluna_data,
+            y=coluna_publico,
+            markers=True,
+            template="simple_white"
+        )
+        fig.update_traces(
+            line=dict(color=COR_LINHA_2, width=3),
+            marker=dict(size=7, color=COR_LINHA_2)
+        )
+        fig = aplicar_estilo(fig)
         st.plotly_chart(fig, use_container_width=True)
 
     if coluna_publico:
@@ -677,11 +742,11 @@ try:
     st.download_button(
         label="⬇️ Baixar CSV",
         data=csv,
-        file_name="festas_juninas_filtrado.csv",
+        file_name="sao_joao_2026_filtrado.csv",
         mime="text/csv"
     )
 
-    st.success(f"✅ Dashboard atualizado automaticamente em {horario}")
+    st.success(f"✅ Dashboard carregado com sucesso em {horario}")
 
 except Exception as erro:
     st.error(f"Erro ao carregar dados: {erro}")
