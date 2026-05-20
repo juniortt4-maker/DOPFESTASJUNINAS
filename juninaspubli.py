@@ -34,8 +34,8 @@ st.markdown("""
 
 url = (
     "https://docs.google.com/spreadsheets/d/"
-    "1qQrvomIDols1qLFsziiCP2BZtXLRXpjsErXKqONTsVE/"
-    "export?format=csv&gid=1996198248"
+    "15viHgCiWJR9PUUVL4nKWBPigivYJDTUvUbuo-1O3FS0/"
+    "export?format=csv&gid=1866688086"
 )
 
 PALETA_BARRAS = [
@@ -593,8 +593,6 @@ try:
         fig.update_layout(showlegend=False, xaxis_title="COMANDO", yaxis_title="PÚBLICO PREVISTO")
         fig = aplicar_estilo(fig)
         st.plotly_chart(fig, use_container_width=True)
-
-
 
     if coluna_cidade and coluna_publico:
         st.subheader("📈 MÉDIA DE PÚBLICO POR CIDADE")
