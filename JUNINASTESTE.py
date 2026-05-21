@@ -625,7 +625,92 @@ try:
         fig.update_yaxes(tickformat=",d")
         fig = aplicar_estilo(fig)
         st.plotly_chart(fig, use_container_width=True)
+    # =====================================================
+    # MAPA DE CALOR - HORÁRIO X PÚBLICO PREVISTO
+    # =====================================================
 
+    if coluna_publico and df_filtrado["DATA_INICIO_BASE"].notna().any():
+        st.subheader("🕒 MAPA DE CALOR - HORÁRIO X PÚBLICO PREVISTO")
+
+        base_calor = (
+            df_filtrado[
+                df_filtrado["DATA_INICIO_BASE"].notna() &
+                df_filtrado["DATA_FIM_BASE"].notna() &
+                df_filtrado[coluna_publico].notna()
+                ]
+            .copy()
+        )
+
+        if not base_calor.empty:
+            registros_heatmap = []
+
+            for _, row in base_calor.iterrows():
+                inicio = row["DATA_INICIO_BASE"]
+                fim = row["DATA_FIM_BASE"]
+                publico = row[coluna_publico]
+
+                if pd.isna(inicio) or pd.isna(fim) or pd.isna(publico):
+                    continue
+
+                if fim < inicio:
+                    fim = inicio
+
+                horas_intervalo = pd.date_range(
+                    start=inicio.floor("h"),
+                    end=fim.floor("h"),
+                    freq="h"
+                )
+
+                for dt_ref in horas_intervalo:
+                    registros_heatmap.append({
+                        "Dia_Semana_Num": dt_ref.weekday(),
+                        "Dia_Semana": ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"][dt_ref.weekday()],
+                        "Hora": dt_ref.hour,
+                        "Publico": float(publico)
+                    })
+
+            heatmap_df = pd.DataFrame(registros_heatmap)
+
+            if not heatmap_df.empty:
+                dias_ordem = (
+                    heatmap_df[["Dia_Semana_Num", "Dia_Semana"]]
+                    .drop_duplicates()
+                    .sort_values("Dia_Semana_Num")["Dia_Semana"]
+                    .tolist()
+                )
+
+                heatmap_resumo = (
+                    heatmap_df.groupby(["Dia_Semana_Num", "Dia_Semana", "Hora"])["Publico"]
+                    .sum()
+                    .reset_index()
+                    .sort_values(["Dia_Semana_Num", "Hora"])
+                )
+
+                matriz = (
+                    heatmap_resumo.pivot(
+                        index="Dia_Semana",
+                        columns="Hora",
+                        values="Publico"
+                    )
+                    .reindex(dias_ordem)
+                    .fillna(0)
+                )
+
+                fig_heat = px.imshow(
+                    matriz,
+                    aspect="auto",
+                    color_continuous_scale="YlOrRd",
+                    text_auto=".0f"
+                )
+
+                fig_heat.update_layout(
+                    xaxis_title="Hora do Dia",
+                    yaxis_title="Dia da Semana",
+                    coloraxis_colorbar_title="Público Previsto"
+                )
+
+                fig_heat = aplicar_estilo(fig_heat)
+                st.plotly_chart(fig_heat, use_container_width=True)
     # =====================================================
     # TOP 10
     # =====================================================
