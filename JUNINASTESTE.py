@@ -67,6 +67,8 @@ MAPA_MESES = {
     7: "Jul", 8: "Ago", 9: "Set", 10: "Out", 11: "Nov", 12: "Dez"
 }
 
+DIAS_SEMANA = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"]
+
 # =========================================================
 # FUNÇÕES
 # =========================================================
@@ -211,6 +213,8 @@ try:
 
     colunas = df.columns.tolist()
 
+    coluna_cpr = df.columns[2]      # C
+    coluna_upm = df.columns[3]      # D
     coluna_inicio = df.columns[9]   # J
     coluna_fim = df.columns[10]     # K
 
@@ -243,6 +247,12 @@ try:
     if coluna_evento:
         df[coluna_evento] = df[coluna_evento].astype(str).str.strip()
 
+    if coluna_cpr:
+        df[coluna_cpr] = df[coluna_cpr].astype(str).str.strip()
+
+    if coluna_upm:
+        df[coluna_upm] = df[coluna_upm].astype(str).str.strip()
+
     df["_ID_LINHA_EVENTO_"] = range(1, len(df) + 1)
 
     df["DATA_INICIO_BASE"] = df[coluna_inicio]
@@ -274,6 +284,18 @@ try:
     anos_sel = st.sidebar.multiselect("FILTRAR ANO", options=anos, default=[])
     if anos_sel:
         df_filtrado = df_filtrado[df_filtrado["Ano"].isin(anos_sel)]
+
+    if coluna_cpr:
+        cpr_opcoes = sorted(df_filtrado[coluna_cpr].dropna().astype(str).unique().tolist())
+        cpr_sel = st.sidebar.multiselect("FILTRAR CPR", options=cpr_opcoes, default=[])
+        if cpr_sel:
+            df_filtrado = df_filtrado[df_filtrado[coluna_cpr].astype(str).isin(cpr_sel)]
+
+    if coluna_upm:
+        upm_opcoes = sorted(df_filtrado[coluna_upm].dropna().astype(str).unique().tolist())
+        upm_sel = st.sidebar.multiselect("FILTRAR UPM", options=upm_opcoes, default=[])
+        if upm_sel:
+            df_filtrado = df_filtrado[df_filtrado[coluna_upm].astype(str).isin(upm_sel)]
 
     if coluna_comando:
         comandos = sorted(df_filtrado[coluna_comando].dropna().astype(str).unique().tolist())
@@ -349,6 +371,8 @@ try:
         c5.metric("EVENTOS EM JANEIRO", eventos_jan)
         c6.metric("EVENTOS EM FEVEREIRO", eventos_fev)
 
+        st.caption(f"Coluna C usada para CPR: {coluna_cpr}")
+        st.caption(f"Coluna D usada para UPM: {coluna_upm}")
         st.caption(f"Coluna J usada como início: {coluna_inicio}")
         st.caption(f"Coluna K usada como fim: {coluna_fim}")
 
@@ -625,6 +649,7 @@ try:
         fig.update_yaxes(tickformat=",d")
         fig = aplicar_estilo(fig)
         st.plotly_chart(fig, use_container_width=True)
+
     # =====================================================
     # MAPA DE CALOR - HORÁRIO X PÚBLICO PREVISTO
     # =====================================================
@@ -637,7 +662,7 @@ try:
                 df_filtrado["DATA_INICIO_BASE"].notna() &
                 df_filtrado["DATA_FIM_BASE"].notna() &
                 df_filtrado[coluna_publico].notna()
-                ]
+            ]
             .copy()
         )
 
@@ -664,7 +689,7 @@ try:
                 for dt_ref in horas_intervalo:
                     registros_heatmap.append({
                         "Dia_Semana_Num": dt_ref.weekday(),
-                        "Dia_Semana": ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"][dt_ref.weekday()],
+                        "Dia_Semana": DIAS_SEMANA[dt_ref.weekday()],
                         "Hora": dt_ref.hour,
                         "Publico": float(publico)
                     })
@@ -711,6 +736,7 @@ try:
 
                 fig_heat = aplicar_estilo(fig_heat)
                 st.plotly_chart(fig_heat, use_container_width=True)
+
     # =====================================================
     # TOP 10
     # =====================================================
