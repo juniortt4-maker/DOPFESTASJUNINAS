@@ -1231,7 +1231,52 @@ try:
         use_container_width=True,
         height=450
     )
+    # =====================================================
+    # TABELA - DADOS DE TRÂNSITO (SOMENTE DETRAN)
+    # =====================================================
 
+    st.subheader("🚦 DADOS DE TRÂNSITO - DETRAN")
+
+    if len(df_2026.columns) > 12:
+        coluna_transito = df_2026.columns[12]   # Coluna M
+        col_a = df_2026.columns[0]              # Coluna A
+        col_c = df_2026.columns[2]              # Coluna C
+        col_d = df_2026.columns[3]              # Coluna D
+        col_g = df_2026.columns[6]              # Coluna G
+        col_h = df_2026.columns[7]              # Coluna H
+        col_i = df_2026.columns[8]              # Coluna I
+
+        tabela_transito = df_2026.copy()
+
+        tabela_transito[coluna_transito] = (
+            tabela_transito[coluna_transito]
+            .astype("string")
+            .fillna("")
+            .str.strip()
+        )
+
+        tabela_transito = tabela_transito[
+            tabela_transito[coluna_transito].str.contains("DETRAN", case=False, na=False)
+        ].copy()
+
+        tabela_transito = tabela_transito[
+            [col_a, col_c, col_d, col_g, col_h, col_i]
+        ].copy()
+
+        tabela_transito = tabela_transito.rename(columns={
+            col_a: "NÚMERO_SEI"
+        })
+
+        if tabela_transito.empty:
+            st.info("Não foram encontrados registros de trânsito com DETRAN na coluna M.")
+        else:
+            st.dataframe(
+                tabela_transito,
+                use_container_width=True,
+                hide_index=True
+            )
+    else:
+        st.warning("A planilha não possui a coluna M disponível.")
     # =====================================================
     # DOWNLOAD
     # =====================================================
