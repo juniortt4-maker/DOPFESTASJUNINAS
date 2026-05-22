@@ -591,27 +591,103 @@ try:
         fig_mes = aplicar_estilo(fig_mes)
         st.plotly_chart(fig_mes, use_container_width=True, config={"locale": "pt-BR"})
 
-    # =====================================================
-    # INDICADORES
-    # =====================================================
+        # =====================================================
+        # INDICADORES
+        # =====================================================
 
     st.subheader("📌 INDICADORES OPERACIONAIS")
 
     total_eventos = int(df_2026["_ID_LINHA_EVENTO_"].count())
     total_publico = int(df_2026[coluna_publico].fillna(0).sum()) if coluna_publico else 0
     total_cidades = df_2026[coluna_cidade].dropna().nunique() if coluna_cidade else 0
-    total_comandos = df_2026[coluna_comando].dropna().nunique() if coluna_comando else 0
     total_cprs = df_2026[coluna_cpr].dropna().nunique() if coluna_cpr else 0
     total_upms = df_2026[coluna_upm].dropna().nunique() if coluna_upm else 0
 
-    c1, c2, c3, c4, c5, c6 = st.columns(6)
+    c1, c2, c3, c4, c5 = st.columns(5)
     c1.metric("🎉 EVENTOS", total_eventos)
     c2.metric("👥 PÚBLICO", f"{total_publico:,}".replace(",", "."))
     c3.metric("🏙️ CIDADES", total_cidades)
-    c4.metric("🚔 COMANDOS", total_comandos)
-    c5.metric("🛡️ CPR", total_cprs)
-    c6.metric("🏢 UPM", total_upms)
+    c4.metric("🛡️ CPR", total_cprs)
+    c5.metric("🏢 UPM", total_upms)
 
+    # =====================================================
+    # MAPA GEOGRÁFICO DOS EVENTOS - DISTRITO FEDERAL
+    # =====================================================
+
+    st.subheader("🗺️ MAPA GEOGRÁFICO DOS EVENTOS - DISTRITO FEDERAL")
+
+    coluna_lat = localizar_coluna(colunas, ["LATITUDE", "LAT"])
+    coluna_lon = localizar_coluna(colunas, ["LONGITUDE", "LON", "LONG"])
+
+    if coluna_lat and coluna_lon:
+        mapa_df = df_2026.copy()
+
+        mapa_df[coluna_lat] = (
+            mapa_df[coluna_lat]
+            .astype(str)
+            .str.strip()
+            .str.replace(",", ".", regex=False)
+        )
+
+        mapa_df[coluna_lon] = (
+            mapa_df[coluna_lon]
+            .astype(str)
+            .str.strip()
+            .str.replace(",", ".", regex=False)
+        )
+
+        mapa_df[coluna_lat] = pd.to_numeric(mapa_df[coluna_lat], errors="coerce")
+        mapa_df[coluna_lon] = pd.to_numeric(mapa_df[coluna_lon], errors="coerce")
+
+        mapa_df = mapa_df[
+            mapa_df[coluna_lat].notna() &
+            mapa_df[coluna_lon].notna()
+        ].copy()
+
+        # recorte aproximado do Distrito Federal
+        mapa_df = mapa_df[
+            mapa_df[coluna_lat].between(-16.10, -15.45) &
+            mapa_df[coluna_lon].between(-48.30, -47.25)
+        ].copy()
+
+        if not mapa_df.empty:
+            hover_cols = {}
+            if coluna_cidade:
+                hover_cols[coluna_cidade] = True
+            if coluna_cpr:
+                hover_cols[coluna_cpr] = True
+            if coluna_upm:
+                hover_cols[coluna_upm] = True
+            if coluna_publico:
+                hover_cols[coluna_publico] = True
+
+            fig_mapa = px.scatter_map(
+                mapa_df,
+                lat=coluna_lat,
+                lon=coluna_lon,
+                hover_name=coluna_evento if coluna_evento else coluna_cidade,
+                hover_data=hover_cols,
+                color=coluna_cpr if coluna_cpr else None,
+                size=coluna_publico if coluna_publico else None,
+                zoom=9.5,
+                center={"lat": -15.79, "lon": -47.88},
+                height=550
+            )
+
+            fig_mapa.update_traces(marker=dict(opacity=0.70))
+            fig_mapa.update_layout(
+                margin=dict(l=10, r=10, t=50, b=10)
+            )
+
+            st.plotly_chart(
+                fig_mapa,
+                use_container_width=True,
+                config={"locale": "pt-BR"}
+            )
+        else:
+            st.warning("Não há eventos com latitude e longitude válidas dentro da área do Distrito Federal.")
+    else:
+        st.warning("As colunas de latitude e longitude não foram localizadas na planilha.")
     # =====================================================
     # EVENTOS POR CPR - FIXO 2026
     # =====================================================
@@ -1085,50 +1161,48 @@ try:
 
         st.dataframe(top_publico, use_container_width=True)
 
-    # =====================================================
-    # ANÁLISE INTELIGENTE - FIXO 2026
-    # =====================================================
+        # =====================================================
+        # ANÁLISE INTELIGENTE - FIXO 2026
+        # =====================================================
 
-    st.subheader("🧠 ANÁLISE INTELIGENTE OPERACIONAL")
+        st.subheader("🧠 ANÁLISE INTELIGENTE OPERACIONAL")
 
-    if coluna_publico and not df_2026[coluna_publico].dropna().empty:
-        maior_publico = df_2026.loc[df_2026[coluna_publico].idxmax()]
-        menor_publico = df_2026.loc[df_2026[coluna_publico].idxmin()]
-        media_geral = round(df_2026[coluna_publico].mean(), 2)
-        mediana = round(df_2026[coluna_publico].median(), 2)
+        if coluna_publico and not df_2026[coluna_publico].dropna().empty:
+            maior_publico = df_2026.loc[df_2026[coluna_publico].idxmax()]
+            menor_publico = df_2026.loc[df_2026[coluna_publico].idxmin()]
+            media_geral = round(df_2026[coluna_publico].mean(), 2)
+            mediana = round(df_2026[coluna_publico].median(), 2)
 
-        nome_maior = maior_publico[coluna_evento] if coluna_evento else "N/D"
-        nome_menor = menor_publico[coluna_evento] if coluna_evento else "N/D"
+            nome_maior = maior_publico[coluna_evento] if coluna_evento else "N/D"
+            nome_menor = menor_publico[coluna_evento] if coluna_evento else "N/D"
 
-        st.info(f"""
-🚨 EVENTO COM MAIOR PÚBLICO PREVISTO:
-{str(nome_maior).upper()} ({int(maior_publico[coluna_publico]):,} PESSOAS)
+            st.info(f'''
+    🚨 EVENTO COM MAIOR PÚBLICO PREVISTO:
+    {str(nome_maior).upper()} ({int(maior_publico[coluna_publico]):,} PESSOAS)
 
-⚠️ EVENTO COM MENOR PÚBLICO PREVISTO:
-{str(nome_menor).upper()} ({int(menor_publico[coluna_publico]):,} PESSOAS)
+    ⚠️ EVENTO COM MENOR PÚBLICO PREVISTO:
+    {str(nome_menor).upper()} ({int(menor_publico[coluna_publico]):,} PESSOAS)
 
-📊 MÉDIA GERAL DE PÚBLICO:
-{media_geral:,.0f} PESSOAS
+    📊 MÉDIA GERAL DE PÚBLICO:
+    {media_geral:,.0f} PESSOAS
 
-📈 MEDIANA DE PÚBLICO:
-{mediana:,.0f} PESSOAS
+    📈 MEDIANA DE PÚBLICO:
+    {mediana:,.0f} PESSOAS
 
-🎉 TOTAL DE EVENTOS:
-{total_eventos}
+    🎉 TOTAL DE EVENTOS:
+    {total_eventos}
 
-🏙️ TOTAL DE CIDADES:
-{total_cidades}
+    🏙️ TOTAL DE CIDADES:
+    {total_cidades}
 
-🚔 TOTAL DE COMANDOS:
-{total_comandos}
+    🛡️ TOTAL DE CPR:
+    {total_cprs}
 
-🛡️ TOTAL DE CPR:
-{total_cprs}
-
-🏢 TOTAL DE UPM:
-{total_upms}
-""")
-
+    🏢 TOTAL DE UPM:
+    {total_upms}
+    ''')
+        else:
+            st.info("Não há dados de público válidos para gerar a análise inteligente.")
     # =====================================================
     # RANKING OPERACIONAL - FIXO 2026
     # =====================================================
@@ -1209,7 +1283,7 @@ try:
             fig.update_yaxes(tickformat=",d")
             fig = aplicar_estilo(fig)
             st.plotly_chart(fig, use_container_width=True, config={"locale": "pt-BR"})
-            
+
         # =====================================================
         # TABELA - DADOS DE TRÂNSITO (SOMENTE DETRAN)
         # =====================================================
@@ -1256,7 +1330,7 @@ try:
             )
     else:
         st.warning("A planilha não possui a coluna M disponível.")
-        
+
     # =====================================================
     # TABELA FINAL - FIXO 2026
     # =====================================================
