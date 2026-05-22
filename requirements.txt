@@ -2,3 +2,5 @@ streamlit
 plotly
 pandas
 streamlit-autorefresh
+openpyxl
+
