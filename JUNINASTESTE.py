@@ -7,6 +7,16 @@ import re
 from io import BytesIO
 
 # =========================================================
+# FALLBACK OPENPYXL
+# =========================================================
+
+try:
+    from openpyxl.styles import PatternFill, Font, Alignment
+    OPENPYXL_DISPONIVEL = True
+except ModuleNotFoundError:
+    OPENPYXL_DISPONIVEL = False
+
+# =========================================================
 # CONFIGURAÇÃO DA PÁGINA
 # =========================================================
 
@@ -214,19 +224,19 @@ def obter_cor_por_upm(valor_upm, texto_row=""):
     upm = str(valor_upm).strip().upper()
 
     if "EVENTO CANCELADO" in str(texto_row).upper():
-        return "#F8D7DA"   # vermelho claro
+        return "#F8D7DA"
 
     if "BPESC" in upm or "BPESCOLAR" in upm:
-        return "#D9EAF7"   # azul claro
+        return "#D9EAF7"
 
     if "BPRURAL" in upm or upm in ["BPR", "BPRV"]:
-        return "#DFF0D8"   # verde claro
+        return "#DFF0D8"
 
     if "BPMA" in upm:
-        return "#E6D9F2"   # roxo claro
+        return "#E6D9F2"
 
     if upm != "":
-        return "#FFF3CD"   # amarelo claro para demais UPMs
+        return "#FFF3CD"
 
     return ""
 
@@ -243,14 +253,15 @@ def definir_cor_linha(row, coluna_upm):
     return ["color: #111827;"] * len(row)
 
 def gerar_excel_colorido(df_exportacao, coluna_upm):
+    if not OPENPYXL_DISPONIVEL:
+        return None
+
     output = BytesIO()
 
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
         df_exportacao.to_excel(writer, index=False, sheet_name="DADOS_2026")
 
         worksheet = writer.sheets["DADOS_2026"]
-
-        from openpyxl.styles import PatternFill, Font, Alignment
 
         fill_azul = PatternFill(fill_type="solid", start_color="D9EAF7", end_color="D9EAF7")
         fill_verde = PatternFill(fill_type="solid", start_color="DFF0D8", end_color="DFF0D8")
@@ -331,6 +342,9 @@ try:
 
     st.sidebar.success("🟢 DASHBOARD SINCRONIZADO")
     st.sidebar.info(f"ÚLTIMA ATUALIZAÇÃO:\n{horario}")
+
+    if not OPENPYXL_DISPONIVEL:
+        st.warning("Openpyxl não instalado no ambiente. O download em Excel colorido ficará desativado.")
 
     colunas = df.columns.tolist()
 
@@ -742,7 +756,7 @@ try:
         fig = aplicar_estilo(fig)
         st.plotly_chart(fig, use_container_width=True, config={"locale": "pt-BR"})
 
-        # =====================================================
+       # =====================================================
     # HISTOGRAMA - FIXO 2026
     # =====================================================
 
@@ -1172,7 +1186,6 @@ try:
     # =====================================================
 
     csv = tabela.to_csv(index=False).encode("utf-8-sig")
-    excel_colorido = gerar_excel_colorido(tabela, coluna_upm)
 
     col_dl1, col_dl2 = st.columns(2)
 
@@ -1185,12 +1198,16 @@ try:
         )
 
     with col_dl2:
-        st.download_button(
-            label="⬇️ BAIXAR EXCEL COLORIDO",
-            data=excel_colorido,
-            file_name="operacao_sao_joao_2026_colorido.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
+        if OPENPYXL_DISPONIVEL:
+            excel_colorido = gerar_excel_colorido(tabela, coluna_upm)
+            st.download_button(
+                label="⬇️ BAIXAR EXCEL COLORIDO",
+                data=excel_colorido,
+                file_name="operacao_sao_joao_2026_colorido.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+        else:
+            st.warning("Download em Excel colorido desativado: openpyxl não instalado.")
 
     st.success(f"✅ DASHBOARD ATUALIZADO EM {horario}")
 
