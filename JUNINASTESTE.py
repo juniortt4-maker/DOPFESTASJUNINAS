@@ -41,7 +41,7 @@ document.documentElement.lang = "pt-BR";
 # HEADER PROFISSIONAL REAL (SEM BUG)
 # =========================================================
 
-col1, col2 = st.columns([1, 22])
+col1, col2 = st.columns([1, 20])
 
 with col1:
     st.image("brasao.png", width=60)
