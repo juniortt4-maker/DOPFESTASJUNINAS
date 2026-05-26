@@ -50,8 +50,8 @@ with col2:
     st.markdown("""
         <div style="
             background: linear-gradient(90deg, #0B1F3A 0%, #1E3A5F 100%);
-            padding: 12px 20px;
-            border-radius: 8px;
+            padding: 12px 18px;
+            border-radius: 06px;
             margin-left: -12px;
             height: 65px;
             display: flex;
