@@ -36,23 +36,34 @@ document.documentElement.lang = "pt-BR";
 </script>
 """, unsafe_allow_html=True)
 
+
 # =========================================================
-# AJUSTE APENAS DO TÍTULO
+# HEADER PROFISSIONAL REAL (SEM BUG)
 # =========================================================
 
-st.markdown("""
-<div style="
-    color: #E5E7EB;
-    font-family: inherit;
-    font-size: 2.2rem;
-    font-weight: 800;
-    line-height: 1.2;
-    margin: 0 0 0.8rem 0;
-    padding: 0;
-">
-    🚔 OPERAÇÃO SÃO JOÃO 2026
-</div>
-""", unsafe_allow_html=True)
+col1, col2 = st.columns([1, 18])
+
+with col1:
+    st.image("brasao.png", width=60)
+
+with col2:
+    st.markdown("""
+        <div style="
+            background: linear-gradient(90deg, #0B1F3A 0%, #1E3A5F 100%);
+            padding: 12px 20px;
+            border-radius: 8px;
+        ">
+            <span style="
+                color: white;
+                font-size: 2rem;
+                font-weight: 800;
+                letter-spacing: 1px;
+            ">
+                OPERAÇÃO SÃO JOÃO 2026 SUBCHEFIA DE OPERAÇÕES PMDF
+            </span>
+        </div>
+    """, unsafe_allow_html=True)
+
 
 # =========================================================
 # LINK DA PLANILHA
@@ -452,23 +463,20 @@ try:
             df_filtrado = df_filtrado[df_filtrado[coluna_natureza].astype(str).isin(natureza_sel)]
 
     if df_filtrado["DATA_INICIO_BASE"].notna().any() and df_filtrado["DATA_FIM_BASE"].notna().any():
-        data_min = df_filtrado["DATA_INICIO_BASE"].min().date()
-        data_max = df_filtrado["DATA_FIM_BASE"].max().date()
 
         intervalo = st.sidebar.date_input(
             "FILTRAR PERÍODO",
-            value=(data_min, data_max),
-            min_value=data_min,
-            max_value=data_max,
+            value=(),
             format="DD/MM/YYYY"
         )
 
         if isinstance(intervalo, (tuple, list)) and len(intervalo) == 2:
             data_ini, data_fim = intervalo
+
             df_filtrado = df_filtrado[
                 (df_filtrado["DATA_INICIO_BASE"].dt.date <= data_fim) &
                 (df_filtrado["DATA_FIM_BASE"].dt.date >= data_ini)
-            ]
+                ]
 
     if df_filtrado.empty:
         st.warning("NENHUM REGISTRO ENCONTRADO.")
@@ -906,27 +914,88 @@ try:
     # =====================================================
     # EVOLUÇÃO DO PÚBLICO - FIXO 2026
     # =====================================================
-
     if coluna_publico and df_2026["DATA_EVENTO_BASE"].notna().any():
-        st.subheader("📈 EVOLUÇÃO DO PÚBLICO")
+        st.subheader("📈 EVOLUÇÃO DO PÚBLICO (DIÁRIO)")
 
         evolucao = (
-            df_2026.groupby("DATA_EVENTO_BASE")[coluna_publico]
+            df_2026.groupby(df_2026["DATA_EVENTO_BASE"].dt.date)[coluna_publico]
             .sum()
             .reset_index()
-            .sort_values("DATA_EVENTO_BASE")
         )
+
+        evolucao.columns = ["Data", "Publico"]
+        evolucao["Data"] = pd.to_datetime(evolucao["Data"])
+
+        # calendário contínuo
+        data_min = evolucao["Data"].min()
+        data_max = evolucao["Data"].max()
+
+        calendario = pd.DataFrame({
+            "Data": pd.date_range(start=data_min, end=data_max, freq="D")
+        })
+
+        evolucao = calendario.merge(evolucao, on="Data", how="left").fillna(0)
+        evolucao = evolucao.sort_values("Data")
+
+        # linha mais suave (efeito visual melhor)
+        evolucao["Publico_smooth"] = evolucao["Publico"].rolling(3, min_periods=1).mean()
 
         fig = px.line(
             evolucao,
-            x="DATA_EVENTO_BASE",
-            y=coluna_publico,
+            x="Data",
+            y="Publico",
             markers=True
         )
-        fig.update_traces(line=dict(color=COR_LINHA_2, width=3))
+
+        # linha principal
+        fig.update_traces(
+            line=dict(color=COR_LINHA_2, width=3),
+            marker=dict(size=6)
+        )
+
+        # ✅ eixo X inteligente (menos poluição)
+        num_dias = (data_max - data_min).days
+
+        if num_dias <= 10:
+            dtick_val = "D1"
+        elif num_dias <= 20:
+            dtick_val = "D2"
+        elif num_dias <= 40:
+            dtick_val = "D3"
+        else:
+            dtick_val = "D5"
+
+        fig.update_xaxes(
+            tickformat="%d/%m",
+            dtick=dtick_val,
+            tickangle=30,
+            tickfont=dict(size=11),
+            rangeslider=dict(visible=True)  # 🔥 zoom interativo
+        )
+
         fig.update_yaxes(tickformat=",d")
+
+        # ✅ tooltip melhor (informação rica)
+        fig.update_traces(
+            hovertemplate=(
+                "<b>Data:</b> %{x|%d/%m/%Y}<br>"
+                "<b>Público:</b> %{y:,}<extra></extra>"
+            )
+        )
+
+        fig.update_layout(
+            xaxis_title="Data",
+            yaxis_title="Público Previsto",
+            hovermode="x unified"  # 👈 melhora leitura ao passar mouse
+        )
+
         fig = aplicar_estilo(fig)
-        st.plotly_chart(fig, use_container_width=True, config={"locale": "pt-BR"})
+
+        st.plotly_chart(
+            fig,
+            use_container_width=True,
+            config={"locale": "pt-BR"}
+        )
 
     # =====================================================
     # EVOLUÇÃO DA QUANTIDADE DE EVENTOS POR HORA
