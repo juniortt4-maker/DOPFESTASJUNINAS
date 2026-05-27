@@ -916,11 +916,16 @@ try:
             st.plotly_chart(fig, use_container_width=True, config={"locale": "pt-BR"})
 
     # =====================================================
-    # EVOLUÇÃO DO PÚBLICO - FIXO 2026
+    # EVOLUÇÃO DO PÚBLICO - FIXO 30 DIAS (DEFINITIVO)
     # =====================================================
-    if coluna_publico and df_2026["DATA_EVENTO_BASE"].notna().any():
-        st.subheader("📈 EVOLUÇÃO DO PÚBLICO (DIÁRIO)")
 
+    if coluna_publico and df_2026["DATA_EVENTO_BASE"].notna().any():
+
+        st.subheader("📈 EVOLUÇÃO DO PÚBLICO (ÚLTIMOS 30 DIAS)")
+
+        # ===============================
+        # BASE AGRUPADA
+        # ===============================
         evolucao = (
             df_2026.groupby(df_2026["DATA_EVENTO_BASE"].dt.date)[coluna_publico]
             .sum()
@@ -930,20 +935,42 @@ try:
         evolucao.columns = ["Data", "Publico"]
         evolucao["Data"] = pd.to_datetime(evolucao["Data"])
 
-        # calendário contínuo
-        data_min = evolucao["Data"].min()
-        data_max = evolucao["Data"].max()
+        # ===============================
+        # 🔥 DATA FINAL FIXA (HOJE)
+        # ===============================
+        hoje = pd.Timestamp.today().normalize()
 
+        # 👉 FORÇA SEMPRE HOJE se filtro estiver vazio ou irrelevante
+        data_final = hoje
+
+        # janela fixa
+        data_inicial_30d = data_final - pd.Timedelta(days=29)
+
+        # ===============================
+        # 🔥 FILTRAR BASE ORIGINAL ANTES DE QUALQUER COISA
+        # ===============================
+        evolucao = evolucao[
+            (evolucao["Data"] >= data_inicial_30d) &
+            (evolucao["Data"] <= data_final)
+            ]
+
+        # ===============================
+        # ✅ CALENDÁRIO CONTÍNUO (GARANTE 30 DIAS VISÍVEIS)
+        # ===============================
         calendario = pd.DataFrame({
-            "Data": pd.date_range(start=data_min, end=data_max, freq="D")
+            "Data": pd.date_range(start=data_inicial_30d, end=data_final, freq="D")
         })
 
         evolucao = calendario.merge(evolucao, on="Data", how="left").fillna(0)
+
         evolucao = evolucao.sort_values("Data")
 
-        # linha mais suave (efeito visual melhor)
+        # suavização
         evolucao["Publico_smooth"] = evolucao["Publico"].rolling(3, min_periods=1).mean()
 
+        # ===============================
+        # 📊 GRÁFICO
+        # ===============================
         fig = px.line(
             evolucao,
             x="Data",
@@ -951,14 +978,13 @@ try:
             markers=True
         )
 
-        # linha principal
         fig.update_traces(
             line=dict(color=COR_LINHA_2, width=3),
             marker=dict(size=6)
         )
 
-        # ✅ eixo X inteligente (menos poluição)
-        num_dias = (data_max - data_min).days
+        # eixo X
+        num_dias = 30
 
         if num_dias <= 10:
             dtick_val = "D1"
@@ -974,12 +1000,11 @@ try:
             dtick=dtick_val,
             tickangle=30,
             tickfont=dict(size=11),
-            rangeslider=dict(visible=True)  # 🔥 zoom interativo
+            rangeslider=dict(visible=True)
         )
 
         fig.update_yaxes(tickformat=",d")
 
-        # ✅ tooltip melhor (informação rica)
         fig.update_traces(
             hovertemplate=(
                 "<b>Data:</b> %{x|%d/%m/%Y}<br>"
@@ -990,7 +1015,7 @@ try:
         fig.update_layout(
             xaxis_title="Data",
             yaxis_title="Público Previsto",
-            hovermode="x unified"  # 👈 melhora leitura ao passar mouse
+            hovermode="x unified"
         )
 
         fig = aplicar_estilo(fig)
@@ -1000,7 +1025,6 @@ try:
             use_container_width=True,
             config={"locale": "pt-BR"}
         )
-
     # =====================================================
     # EVOLUÇÃO DA QUANTIDADE DE EVENTOS POR HORA
     # =====================================================
