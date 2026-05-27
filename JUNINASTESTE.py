@@ -914,9 +914,8 @@ try:
             fig.update_yaxes(tickformat=",d")
             fig = aplicar_estilo(fig)
             st.plotly_chart(fig, use_container_width=True, config={"locale": "pt-BR"})
-
     # =====================================================
-    # EVOLUÇÃO DO PÚBLICO - FIXO 30 DIAS (DEFINITIVO)
+    # EVOLUÇÃO DO PÚBLICO - FIXO 30 DIAS (FINAL CORRETO)
     # =====================================================
 
     if coluna_publico and df_2026["DATA_EVENTO_BASE"].notna().any():
@@ -934,20 +933,32 @@ try:
 
         evolucao.columns = ["Data", "Publico"]
         evolucao["Data"] = pd.to_datetime(evolucao["Data"])
+        evolucao = evolucao.sort_values("Data")
 
         # ===============================
-        # 🔥 DATA FINAL FIXA (HOJE)
+        # 🔥 DETECÇÃO DE FILTRO (FORMA ROBUSTA)
         # ===============================
         hoje = pd.Timestamp.today().normalize()
 
-        # 👉 FORÇA SEMPRE HOJE se filtro estiver vazio ou irrelevante
-        data_final = hoje
+        data_min_df = evolucao["Data"].min()
+        data_max_df = evolucao["Data"].max()
 
-        # janela fixa
+        # tamanho do período atual
+        range_dias = (data_max_df - data_min_df).days
+
+        # ✅ REGRA PRINCIPAL
+        if range_dias > 60:
+            # 👉 NÃO tem filtro → usa HOJE
+            data_final = hoje
+        else:
+            # 👉 tem filtro → usa data do usuário
+            data_final = data_max_df
+
+        # janela fixa 30 dias
         data_inicial_30d = data_final - pd.Timedelta(days=29)
 
         # ===============================
-        # 🔥 FILTRAR BASE ORIGINAL ANTES DE QUALQUER COISA
+        # FILTRAR DADOS
         # ===============================
         evolucao = evolucao[
             (evolucao["Data"] >= data_inicial_30d) &
@@ -955,21 +966,22 @@ try:
             ]
 
         # ===============================
-        # ✅ CALENDÁRIO CONTÍNUO (GARANTE 30 DIAS VISÍVEIS)
+        # CALENDÁRIO CONTÍNUO
         # ===============================
         calendario = pd.DataFrame({
             "Data": pd.date_range(start=data_inicial_30d, end=data_final, freq="D")
         })
 
         evolucao = calendario.merge(evolucao, on="Data", how="left").fillna(0)
-
         evolucao = evolucao.sort_values("Data")
 
         # suavização
-        evolucao["Publico_smooth"] = evolucao["Publico"].rolling(3, min_periods=1).mean()
+        evolucao["Publico_smooth"] = (
+            evolucao["Publico"].rolling(3, min_periods=1).mean()
+        )
 
         # ===============================
-        # 📊 GRÁFICO
+        # GRÁFICO
         # ===============================
         fig = px.line(
             evolucao,
@@ -984,20 +996,9 @@ try:
         )
 
         # eixo X
-        num_dias = 30
-
-        if num_dias <= 10:
-            dtick_val = "D1"
-        elif num_dias <= 20:
-            dtick_val = "D2"
-        elif num_dias <= 40:
-            dtick_val = "D3"
-        else:
-            dtick_val = "D5"
-
         fig.update_xaxes(
             tickformat="%d/%m",
-            dtick=dtick_val,
+            dtick="D3",
             tickangle=30,
             tickfont=dict(size=11),
             rangeslider=dict(visible=True)
