@@ -915,46 +915,41 @@ try:
             fig = aplicar_estilo(fig)
             st.plotly_chart(fig, use_container_width=True, config={"locale": "pt-BR"})
     # =====================================================
-    # EVOLUÇÃO DO PÚBLICO - FIXO 30 DIAS (FINAL CORRETO)
+    # EVOLUÇÃO DE EVENTOS - FIXO 30 DIAS (VERSÃO FINAL)
     # =====================================================
 
-    if coluna_publico and df_2026["DATA_EVENTO_BASE"].notna().any():
+    if df_2026["DATA_EVENTO_BASE"].notna().any():
 
-        st.subheader("📈 EVOLUÇÃO DO PÚBLICO (ÚLTIMOS 30 DIAS)")
+        st.subheader("📈 EVOLUÇÃO DE EVENTOS (ÚLTIMOS 30 DIAS)")
 
         # ===============================
-        # BASE AGRUPADA
+        # BASE AGRUPADA (CONTAGEM)
         # ===============================
         evolucao = (
-            df_2026.groupby(df_2026["DATA_EVENTO_BASE"].dt.date)[coluna_publico]
-            .sum()
-            .reset_index()
+            df_2026.groupby(df_2026["DATA_EVENTO_BASE"].dt.date)
+            .size()
+            .reset_index(name="Quantidade")
         )
 
-        evolucao.columns = ["Data", "Publico"]
+        evolucao.columns = ["Data", "Quantidade"]
         evolucao["Data"] = pd.to_datetime(evolucao["Data"])
         evolucao = evolucao.sort_values("Data")
 
         # ===============================
-        # 🔥 DETECÇÃO DE FILTRO (FORMA ROBUSTA)
+        # DETECÇÃO DE FILTRO
         # ===============================
         hoje = pd.Timestamp.today().normalize()
 
         data_min_df = evolucao["Data"].min()
         data_max_df = evolucao["Data"].max()
 
-        # tamanho do período atual
         range_dias = (data_max_df - data_min_df).days
 
-        # ✅ REGRA PRINCIPAL
         if range_dias > 60:
-            # 👉 NÃO tem filtro → usa HOJE
             data_final = hoje
         else:
-            # 👉 tem filtro → usa data do usuário
             data_final = data_max_df
 
-        # janela fixa 30 dias
         data_inicial_30d = data_final - pd.Timedelta(days=29)
 
         # ===============================
@@ -976,8 +971,8 @@ try:
         evolucao = evolucao.sort_values("Data")
 
         # suavização
-        evolucao["Publico_smooth"] = (
-            evolucao["Publico"].rolling(3, min_periods=1).mean()
+        evolucao["Quantidade_smooth"] = (
+            evolucao["Quantidade"].rolling(3, min_periods=1).mean()
         )
 
         # ===============================
@@ -986,7 +981,7 @@ try:
         fig = px.line(
             evolucao,
             x="Data",
-            y="Publico",
+            y="Quantidade",
             markers=True
         )
 
@@ -995,13 +990,12 @@ try:
             marker=dict(size=6)
         )
 
-        # eixo X
+        # eixo X (SEM RANGE SLIDER)
         fig.update_xaxes(
             tickformat="%d/%m",
             dtick="D3",
             tickangle=30,
-            tickfont=dict(size=11),
-            rangeslider=dict(visible=True)
+            tickfont=dict(size=11)
         )
 
         fig.update_yaxes(tickformat=",d")
@@ -1009,13 +1003,13 @@ try:
         fig.update_traces(
             hovertemplate=(
                 "<b>Data:</b> %{x|%d/%m/%Y}<br>"
-                "<b>Público:</b> %{y:,}<extra></extra>"
+                "<b>Eventos:</b> %{y:,}<extra></extra>"
             )
         )
 
         fig.update_layout(
             xaxis_title="Data",
-            yaxis_title="Público Previsto",
+            yaxis_title="Quantidade de Eventos",
             hovermode="x unified"
         )
 
