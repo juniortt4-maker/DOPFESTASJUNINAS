@@ -1472,12 +1472,12 @@ try:
         # somente a coluna de observação fica editável
         disabled=[
             col for col in tabela.columns
-            if col != "OBSERVAÇÕES OPERACIONAIS"
+            if col != "UPM DEMANDADA"
         ],
 
         column_config={
-            "OBSERVAÇÕES OPERACIONAIS": st.column_config.TextColumn(
-                "OBSERVAÇÕES OPERACIONAIS",
+            "UPM DEMANDADA": st.column_config.TextColumn(
+                "UPM DEMANDADA",
                 help="Campo para inserção de informações complementares",
                 width="large"
             )
