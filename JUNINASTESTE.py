@@ -12,6 +12,7 @@ from io import BytesIO
 
 try:
     from openpyxl.styles import PatternFill, Font, Alignment
+
     OPENPYXL_DISPONIVEL = True
 except ModuleNotFoundError:
     OPENPYXL_DISPONIVEL = False
@@ -35,7 +36,6 @@ st.markdown("""
 document.documentElement.lang = "pt-BR";
 </script>
 """, unsafe_allow_html=True)
-
 
 # =========================================================
 # HEADER PROFISSIONAL REAL (SEM BUG)
@@ -106,6 +106,7 @@ MAPA_MESES = {
 
 DIAS_SEMANA = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"]
 
+
 # =========================================================
 # FUNÇÕES
 # =========================================================
@@ -116,6 +117,7 @@ def normalizar_texto(texto):
     texto = re.sub(r"\s+", " ", texto)
     return texto
 
+
 def limpar_categoria(valor):
     if pd.isna(valor):
         return pd.NA
@@ -124,6 +126,7 @@ def limpar_categoria(valor):
         return pd.NA
     valor = re.sub(r"\s+", " ", valor)
     return valor.upper()
+
 
 def localizar_coluna(colunas, termos):
     for termo in termos:
@@ -138,6 +141,7 @@ def localizar_coluna(colunas, termos):
             if termo_norm in normalizar_texto(coluna):
                 return coluna
     return None
+
 
 def converter_numero_misto(valor):
     if pd.isna(valor):
@@ -169,6 +173,7 @@ def converter_numero_misto(valor):
     except:
         return pd.NA
 
+
 def parse_data_strict(valor):
     if pd.isna(valor):
         return pd.NaT
@@ -195,6 +200,7 @@ def parse_data_strict(valor):
             pass
 
     return pd.NaT
+
 
 def aplicar_estilo(fig):
     fig.update_layout(
@@ -228,12 +234,14 @@ def aplicar_estilo(fig):
     )
     return fig
 
+
 @st.cache_data(ttl=60)
 def carregar_dados():
     df = pd.read_csv(url)
     df = df.dropna(how="all")
     df.columns = [str(c).strip() for c in df.columns]
     return df
+
 
 def obter_cor_por_upm(valor_upm, texto_row=""):
     upm = str(valor_upm).strip().upper()
@@ -255,6 +263,7 @@ def obter_cor_por_upm(valor_upm, texto_row=""):
 
     return ""
 
+
 def definir_cor_linha(row, coluna_upm):
     valor_upm = row[coluna_upm] if coluna_upm in row.index else ""
     texto_row = " ".join([str(v).strip() for v in row.fillna("").tolist()])
@@ -266,6 +275,7 @@ def definir_cor_linha(row, coluna_upm):
         return [estilo] * len(row)
 
     return ["color: #111827;"] * len(row)
+
 
 def gerar_excel_colorido(df_exportacao, coluna_upm):
     if not OPENPYXL_DISPONIVEL:
@@ -344,6 +354,7 @@ def gerar_excel_colorido(df_exportacao, coluna_upm):
 
     output.seek(0)
     return output.getvalue()
+
 
 # =========================================================
 # INÍCIO
@@ -654,13 +665,13 @@ try:
         mapa_df = mapa_df[
             mapa_df[coluna_lat].notna() &
             mapa_df[coluna_lon].notna()
-        ].copy()
+            ].copy()
 
         # recorte aproximado do Distrito Federal
         mapa_df = mapa_df[
             mapa_df[coluna_lat].between(-16.10, -15.45) &
             mapa_df[coluna_lon].between(-48.30, -47.25)
-        ].copy()
+            ].copy()
 
         if not mapa_df.empty:
             hover_cols = {}
@@ -895,7 +906,7 @@ try:
         fig = aplicar_estilo(fig)
         st.plotly_chart(fig, use_container_width=True, config={"locale": "pt-BR"})
 
-       # =====================================================
+    # =====================================================
     # HISTOGRAMA - FIXO 2026
     # =====================================================
 
@@ -1082,7 +1093,7 @@ try:
                 df_2026["DATA_INICIO_BASE"].notna() &
                 df_2026["DATA_FIM_BASE"].notna() &
                 df_2026[coluna_publico].notna()
-            ]
+                ]
             .copy()
         )
 
@@ -1173,7 +1184,7 @@ try:
             df_2026[
                 df_2026["DATA_INICIO_BASE"].notna() &
                 df_2026["DATA_FIM_BASE"].notna()
-            ]
+                ]
             .copy()
         )
 
@@ -1371,7 +1382,7 @@ try:
             df_2026[
                 df_2026[coluna_natureza].notna() &
                 df_2026[coluna_comando].notna()
-            ]
+                ]
             .groupby([coluna_comando, coluna_natureza])["_ID_LINHA_EVENTO_"]
             .count()
             .reset_index(name="Eventos")
@@ -1438,13 +1449,84 @@ try:
         st.warning("A planilha não possui a coluna M disponível.")
 
 
+    # =====================================================
+    # FUNÇÃO DE COR DAS LINHAS
+    # =====================================================
+
+    def colorir_linhas(row):
+        texto = " ".join([str(v).upper() for v in row.fillna("")])
+        upm = str(row.get(coluna_upm, "")).upper()
+
+        if "CANCELADO" in texto:
+            cor = "background-color: #F8D7DA"  # vermelho claro
+        elif "BPESC" in upm or "BPESCOLAR" in upm:
+            cor = "background-color: #D9EAF7"  # azul claro
+        elif "BPRURAL" in upm or upm in ["BPR", "BPRV"]:
+            cor = "background-color: #DFF0D8"  # verde
+        elif "BPMA" in upm:
+            cor = "background-color: #E6D9F2"  # roxo
+        elif upm != "":
+            cor = "background-color: #FFF3CD"  # amarelo claro
+        else:
+            cor = ""
+
+        if cor:
+            return [f"{cor}; color: black; font-weight: bold"] * len(row)
+        else:
+            return [""] * len(row)
+
+        # =====================================================
+        # FUNÇÃO DE COR DAS LINHAS
+        # =====================================================
+
+        def colorir_linhas(row):
+            texto = " ".join([str(v).upper() for v in row.fillna("")])
+            upm = str(row.get(coluna_upm, "")).upper()
+
+            if "CANCELADO" in texto:
+                cor = "background-color: #F8D7DA"
+            elif "BPESC" in upm or "BPESCOLAR" in upm:
+                cor = "background-color: #D9EAF7"
+            elif "BPRURAL" in upm or upm in ["BPR", "BPRV"]:
+                cor = "background-color: #DFF0D8"
+            elif "BPMA" in upm:
+                cor = "background-color: #E6D9F2"
+            elif upm != "":
+                cor = "background-color: #FFF3CD"
+            else:
+                cor = ""
+
+            return [f"{cor}; color: black; font-weight: bold"] * len(row) if cor else [""] * len(row)
+
 # =====================================================
-    # TABELA FINAL - EDITÁVEL (VERSÃO ESTÁVEL)
+    # FUNÇÃO DE COR DAS LINHAS
+    # =====================================================
+
+    def colorir_linhas(row):
+        texto = " ".join([str(v).upper() for v in row.fillna("")])
+        upm = str(row.get(coluna_upm, "")).upper()
+
+        if "CANCELADO" in texto:
+            cor = "background-color: #F8D7DA"
+        elif "BPESC" in upm or "BPESCOLAR" in upm:
+            cor = "background-color: #D9EAF7"
+        elif "BPRURAL" in upm or upm in ["BPR", "BPRV"]:
+            cor = "background-color: #DFF0D8"
+        elif "BPMA" in upm:
+            cor = "background-color: #E6D9F2"
+        elif upm != "":
+            cor = "background-color: #FFF3CD"
+        else:
+            cor = ""
+
+        return [f"{cor}; color: black; font-weight: bold"] * len(row) if cor else [""] * len(row)
+
+    # =====================================================
+    # TABELA FINAL
     # =====================================================
 
     st.subheader("📄 DADOS OPERACIONAIS")
 
-    # ✅ input único
     pesquisa = st.text_input(
         "🔎 PESQUISAR NA TABELA",
         key="pesquisa_tabela_operacional"
@@ -1452,7 +1534,6 @@ try:
 
     tabela_base = df_2026.copy()
 
-    # ✅ filtro
     if pesquisa:
         tabela_base = tabela_base[
             tabela_base.astype(str)
@@ -1460,75 +1541,53 @@ try:
             .any(axis=1)
         ]
 
-    # ✅ garante coluna
-    if "UPM DEMANDADA" not in tabela_base.columns:
-        tabela_base["UPM DEMANDADA"] = ""
-
     # =====================================================
-    # MEMÓRIA (SESSION STATE)
+    # EXIBIÇÃO COM CORES
     # =====================================================
 
-    if "memoria_upm" not in st.session_state:
-        st.session_state["memoria_upm"] = {}
-
-    # aplica memória nas linhas
-    def aplicar_memoria(row):
-        id_linha = row["_ID_LINHA_EVENTO_"]
-        if id_linha in st.session_state["memoria_upm"]:
-            return st.session_state["memoria_upm"][id_linha]
-        return row["UPM DEMANDADA"]
-
-    tabela_base["UPM DEMANDADA"] = tabela_base.apply(aplicar_memoria, axis=1)
-
-    # =====================================================
-    # EDITOR
-    # =====================================================
-
-    tabela_editavel = st.data_editor(
-        tabela_base,
+    st.dataframe(
+        tabela_base.style.apply(colorir_linhas, axis=1),
         use_container_width=True,
-        height=450,
-        hide_index=True,
-        key="editor_operacional",
+        hide_index=True
+    )
 
-        disabled=[
-            col for col in tabela_base.columns
-            if col != "UPM DEMANDADA"
-        ],
+    # =====================================================
+    # DOWNLOADS
+    # =====================================================
 
-        column_config={
-            "UPM DEMANDADA": st.column_config.TextColumn(
-                "UPM DEMANDADA",
-                help="Campo editável",
-                width="large"
+    csv = tabela_base.to_csv(index=False).encode("utf-8-sig")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.download_button(
+            label="⬇️ BAIXAR CSV",
+            data=csv,
+            file_name="operacao_sao_joao_2026.csv",
+            mime="text/csv"
+        )
+
+    with col2:
+        if OPENPYXL_DISPONIVEL:
+            excel = gerar_excel_colorido(tabela_base, coluna_upm)
+
+            st.download_button(
+                label="⬇️ BAIXAR EXCEL COLORIDO",
+                data=excel,
+                file_name="operacao_sao_joao_2026_colorido.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
-        }
-    )
+        else:
+            st.warning("⚠️ Instale openpyxl para habilitar Excel colorido.")
 
     # =====================================================
-    # SALVAR NA MEMÓRIA
+    # STATUS FINAL
     # =====================================================
-
-    for _, row in tabela_editavel.iterrows():
-        st.session_state["memoria_upm"][row["_ID_LINHA_EVENTO_"]] = row["UPM DEMANDADA"]
-
-    # =====================================================
-    # DOWNLOAD
-    # =====================================================
-
-    csv = tabela_editavel.to_csv(index=False).encode("utf-8-sig")
-
-    st.download_button(
-        label="⬇️ BAIXAR CSV",
-        data=csv,
-        file_name="operacao_sao_joao_2026.csv",
-        mime="text/csv"
-    )
 
     st.success(f"✅ DASHBOARD ATUALIZADO EM {horario}")
 
 # =====================================================
-# EXCEPT (OBRIGATÓRIO — NÃO MEXER)
+# ⚠️ NÃO MEXER — FECHAMENTO DO TRY
 # =====================================================
 
 except Exception as erro:
