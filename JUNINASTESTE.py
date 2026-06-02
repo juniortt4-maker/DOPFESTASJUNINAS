@@ -497,9 +497,9 @@ try:
         st.warning("NENHUM REGISTRO ENCONTRADO.")
         st.stop()
 
-    df_2026 = df_filtrado[df_filtrado["Ano"] == 2026].copy()
+    df_filtrado_final = df_filtrado[df_filtrado["Ano"] == 2026].copy()
 
-    if df_2026.empty:
+    if df_filtrado_final.empty:
         st.warning("NÃO HÁ DADOS DE 2026 PARA EXIBIR OS GRÁFICOS OPERACIONAIS.")
         st.stop()
 
@@ -615,16 +615,45 @@ try:
         st.plotly_chart(fig_mes, use_container_width=True, config={"locale": "pt-BR"})
 
         # =====================================================
+        # FILTRO GLOBAL POR PÚBLICO (IMPACTA TUDO)
+        # =====================================================
+
+        df_base_publico = df_filtrado_final.copy()
+
+        if coluna_publico and df_base_publico[coluna_publico].notna().any():
+
+            st.subheader("🎚️ FILTRO POR PÚBLICO PREVISTO")
+
+            publico_min = int(df_base_publico[coluna_publico].min())
+            publico_max = int(df_base_publico[coluna_publico].max())
+
+            faixa_publico = st.slider(
+                "Selecione a faixa de público",
+                min_value=publico_min,
+                max_value=publico_max,
+                value=(publico_min, publico_max),
+                step=100,
+                key="filtro_publico_global"
+            )
+
+            df_filtrado_final = df_base_publico[
+                (df_base_publico[coluna_publico] >= faixa_publico[0]) &
+                (df_base_publico[coluna_publico] <= faixa_publico[1])
+                ].copy()
+
+        else:
+            df_filtrado_final = df_base_publico.copy()
+        # =====================================================
         # INDICADORES
         # =====================================================
 
     st.subheader("📌 INDICADORES OPERACIONAIS")
 
-    total_eventos = int(df_2026["_ID_LINHA_EVENTO_"].count())
-    total_publico = int(df_2026[coluna_publico].fillna(0).sum()) if coluna_publico else 0
-    total_cidades = df_2026[coluna_cidade].dropna().nunique() if coluna_cidade else 0
-    total_cprs = df_2026[coluna_cpr].dropna().nunique() if coluna_cpr else 0
-    total_upms = df_2026[coluna_upm].dropna().nunique() if coluna_upm else 0
+    total_eventos = int(df_filtrado_final["_ID_LINHA_EVENTO_"].count())
+    total_publico = int(df_filtrado_final[coluna_publico].fillna(0).sum()) if coluna_publico else 0
+    total_cidades = df_filtrado_final[coluna_cidade].dropna().nunique() if coluna_cidade else 0
+    total_cprs = df_filtrado_final[coluna_cpr].dropna().nunique() if coluna_cpr else 0
+    total_upms = df_filtrado_final[coluna_upm].dropna().nunique() if coluna_upm else 0
 
     c1, c2, c3, c4, c5 = st.columns(5)
     c1.metric("🎉 EVENTOS", total_eventos)
@@ -643,7 +672,7 @@ try:
     coluna_lon = localizar_coluna(colunas, ["LONGITUDE", "LON", "LONG"])
 
     if coluna_lat and coluna_lon:
-        mapa_df = df_2026.copy()
+        mapa_df = df_filtrado_final.copy()
 
         mapa_df[coluna_lat] = (
             mapa_df[coluna_lat]
@@ -719,7 +748,7 @@ try:
         st.subheader("🛡️ EVENTOS POR CPR")
 
         cpr_df = (
-            df_2026[df_2026[coluna_cpr].notna()]
+            df_filtrado_final[df_filtrado_final[coluna_cpr].notna()]
             .groupby(coluna_cpr)["_ID_LINHA_EVENTO_"]
             .count()
             .reset_index(name="Eventos")
@@ -756,7 +785,7 @@ try:
         st.subheader("🏢 EVENTOS POR UPM")
 
         upm_df = (
-            df_2026[df_2026[coluna_upm].notna()]
+            df_filtrado_final[df_filtrado_final[coluna_upm].notna()]
             .groupby(coluna_upm)["_ID_LINHA_EVENTO_"]
             .count()
             .reset_index(name="Eventos")
@@ -804,7 +833,7 @@ try:
     if coluna_natureza:
         st.subheader("🎭 EVENTOS POR NATUREZA")
 
-        base_natureza = df_2026[df_2026[coluna_natureza].notna()].copy()
+        base_natureza = df_filtrado_final[df_filtrado_final[coluna_natureza].notna()].copy()
 
         natureza_df = (
             base_natureza.groupby(coluna_natureza)["_ID_LINHA_EVENTO_"]
@@ -835,10 +864,10 @@ try:
 
     st.subheader("🚦 INFORMAÇÕES DE TRÂNSITO")
 
-    if len(df_2026.columns) > 12:
-        coluna_transito = df_2026.columns[12]
+    if len(df_filtrado_final.columns) > 12:
+        coluna_transito = df_filtrado_final.columns[12]
 
-        base_transito = df_2026.copy()
+        base_transito = df_filtrado_final.copy()
 
         base_transito[coluna_transito] = (
             base_transito[coluna_transito]
@@ -888,7 +917,7 @@ try:
         st.subheader("🚔 EVENTOS POR COMANDO")
 
         comando_df = (
-            df_2026.groupby(coluna_comando)["_ID_LINHA_EVENTO_"]
+            df_filtrado_final.groupby(coluna_comando)["_ID_LINHA_EVENTO_"]
             .count()
             .reset_index(name="Eventos")
             .sort_values(by="Eventos", ascending=False)
@@ -913,7 +942,7 @@ try:
     if coluna_publico:
         st.subheader("📊 DISTRIBUIÇÃO DO PÚBLICO")
 
-        base_publico = df_2026[df_2026[coluna_publico].notna()].copy()
+        base_publico = df_filtrado_final[df_filtrado_final[coluna_publico].notna()].copy()
 
         if not base_publico.empty:
             fig = px.histogram(
@@ -948,7 +977,7 @@ try:
     # EVOLUÇÃO DE EVENTOS (VERSÃO DEFINITIVA)
     # =====================================================
 
-    if df_2026["DATA_EVENTO_BASE"].notna().any():
+    if df_filtrado_final["DATA_EVENTO_BASE"].notna().any():
 
         st.subheader("📈 EVOLUÇÃO DE EVENTOS")
 
@@ -956,7 +985,7 @@ try:
         # BASE AGRUPADA (CONTAGEM)
         # ===============================
         evolucao = (
-            df_2026.groupby(df_2026["DATA_EVENTO_BASE"].dt.date)
+            df_filtrado_final.groupby(df_filtrado_final["DATA_EVENTO_BASE"].dt.date)
             .size()
             .reset_index(name="Quantidade")
         )
@@ -1049,11 +1078,11 @@ try:
     # EVOLUÇÃO DA QUANTIDADE DE EVENTOS POR HORA
     # =====================================================
 
-    if df_2026["Hora"].notna().any():
+    if df_filtrado_final["Hora"].notna().any():
         st.subheader("⏰ EVOLUÇÃO DA QUANTIDADE DE EVENTOS POR HORA")
 
         eventos_hora = (
-            df_2026[df_2026["Hora"].notna()]
+            df_filtrado_final[df_filtrado_final["Hora"].notna()]
             .groupby("Hora")["_ID_LINHA_EVENTO_"]
             .count()
             .reset_index(name="Quantidade de Eventos")
@@ -1085,14 +1114,14 @@ try:
     # MAPA DE CALOR - HORÁRIO X PÚBLICO PREVISTO
     # =====================================================
 
-    if coluna_publico and df_2026["DATA_INICIO_BASE"].notna().any():
+    if coluna_publico and df_filtrado_final["DATA_INICIO_BASE"].notna().any():
         st.subheader("🕒 MAPA DE CALOR - HORÁRIO X PÚBLICO PREVISTO")
 
         base_calor = (
-            df_2026[
-                df_2026["DATA_INICIO_BASE"].notna() &
-                df_2026["DATA_FIM_BASE"].notna() &
-                df_2026[coluna_publico].notna()
+            df_filtrado_final[
+                df_filtrado_final["DATA_INICIO_BASE"].notna() &
+                df_filtrado_final["DATA_FIM_BASE"].notna() &
+                df_filtrado_final[coluna_publico].notna()
                 ]
             .copy()
         )
@@ -1177,13 +1206,13 @@ try:
     # MAPA DE CALOR - HORÁRIO X QUANTIDADE DE EVENTOS
     # =====================================================
 
-    if df_2026["DATA_INICIO_BASE"].notna().any():
+    if df_filtrado_final["DATA_INICIO_BASE"].notna().any():
         st.subheader("🗓️ MAPA DE CALOR - HORÁRIO X QUANTIDADE DE EVENTOS")
 
         base_calor_eventos = (
-            df_2026[
-                df_2026["DATA_INICIO_BASE"].notna() &
-                df_2026["DATA_FIM_BASE"].notna()
+            df_filtrado_final[
+                df_filtrado_final["DATA_INICIO_BASE"].notna() &
+                df_filtrado_final["DATA_FIM_BASE"].notna()
                 ]
             .copy()
         )
@@ -1271,7 +1300,7 @@ try:
         st.subheader("🔥 TOP 10 - PÚBLICO PREVISTO")
 
         top_publico = (
-            df_2026[df_2026[coluna_publico].notna()]
+            df_filtrado_final[df_filtrado_final[coluna_publico].notna()]
             .sort_values(by=coluna_publico, ascending=False)
             .head(10)
         )
@@ -1284,11 +1313,11 @@ try:
 
         st.subheader("🧠 ANÁLISE INTELIGENTE OPERACIONAL")
 
-        if coluna_publico and not df_2026[coluna_publico].dropna().empty:
-            maior_publico = df_2026.loc[df_2026[coluna_publico].idxmax()]
-            menor_publico = df_2026.loc[df_2026[coluna_publico].idxmin()]
-            media_geral = round(df_2026[coluna_publico].mean(), 2)
-            mediana = round(df_2026[coluna_publico].median(), 2)
+        if coluna_publico and not df_filtrado_final[coluna_publico].dropna().empty:
+            maior_publico = df_filtrado_final.loc[df_filtrado_final[coluna_publico].idxmax()]
+            menor_publico = df_filtrado_final.loc[df_filtrado_final[coluna_publico].idxmin()]
+            media_geral = round(df_filtrado_final[coluna_publico].mean(), 2)
+            mediana = round(df_filtrado_final[coluna_publico].median(), 2)
 
             nome_maior = maior_publico[coluna_evento] if coluna_evento else "N/D"
             nome_menor = menor_publico[coluna_evento] if coluna_evento else "N/D"
@@ -1328,7 +1357,7 @@ try:
         st.subheader("🏆 RANKING OPERACIONAL DOS COMANDOS")
 
         ranking = (
-            df_2026.groupby(coluna_comando)[coluna_publico]
+            df_filtrado_final.groupby(coluna_comando)[coluna_publico]
             .agg(["sum", "mean", "count"])
             .reset_index()
         )
@@ -1351,7 +1380,7 @@ try:
         st.subheader("👥 EVENTOS POR TIPO DE PÚBLICO")
 
         tipo_publico_df = (
-            df_2026[df_2026[coluna_tipo_publico].notna()]
+            df_filtrado_final[df_filtrado_final[coluna_tipo_publico].notna()]
             .groupby(coluna_tipo_publico)["_ID_LINHA_EVENTO_"]
             .count()
             .reset_index(name="Eventos")
@@ -1379,9 +1408,9 @@ try:
         st.subheader("🗂️ NATUREZA POR COMANDO")
 
         nat_comando = (
-            df_2026[
-                df_2026[coluna_natureza].notna() &
-                df_2026[coluna_comando].notna()
+            df_filtrado_final[
+                df_filtrado_final[coluna_natureza].notna() &
+                df_filtrado_final[coluna_comando].notna()
                 ]
             .groupby([coluna_comando, coluna_natureza])["_ID_LINHA_EVENTO_"]
             .count()
@@ -1407,16 +1436,16 @@ try:
 
     st.subheader("🚦 DADOS DE TRÂNSITO - DETRAN")
 
-    if len(df_2026.columns) > 12:
-        coluna_transito = df_2026.columns[12]  # Coluna M
-        col_a = df_2026.columns[0]  # Coluna A
-        col_c = df_2026.columns[2]  # Coluna C
-        col_d = df_2026.columns[3]  # Coluna D
-        col_g = df_2026.columns[6]  # Coluna G
-        col_h = df_2026.columns[7]  # Coluna H
-        col_i = df_2026.columns[8]  # Coluna I
+    if len(df_filtrado_final.columns) > 12:
+        coluna_transito = df_filtrado_final.columns[12]  # Coluna M
+        col_a = df_filtrado_final.columns[0]  # Coluna A
+        col_c = df_filtrado_final.columns[2]  # Coluna C
+        col_d = df_filtrado_final.columns[3]  # Coluna D
+        col_g = df_filtrado_final.columns[6]  # Coluna G
+        col_h = df_filtrado_final.columns[7]  # Coluna H
+        col_i = df_filtrado_final.columns[8]  # Coluna I
 
-        tabela_transito = df_2026.copy()
+        tabela_transito = df_filtrado_final.copy()
 
         tabela_transito[coluna_transito] = (
             tabela_transito[coluna_transito]
@@ -1532,7 +1561,7 @@ try:
         key="pesquisa_tabela_operacional"
     )
 
-    tabela_base = df_2026.copy()
+    tabela_base = df_filtrado_final.copy()
 
     if pesquisa:
         tabela_base = tabela_base[
