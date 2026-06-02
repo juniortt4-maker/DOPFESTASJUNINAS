@@ -488,9 +488,12 @@ try:
         if isinstance(intervalo, (tuple, list)) and len(intervalo) == 2:
             data_ini, data_fim = intervalo
 
+            inicio_periodo = pd.to_datetime(data_ini)
+            fim_periodo = pd.to_datetime(data_fim) + pd.Timedelta(days=1) - pd.Timedelta(seconds=1)
+
             df_filtrado = df_filtrado[
-                (df_filtrado["DATA_INICIO_BASE"].dt.date <= data_fim) &
-                (df_filtrado["DATA_FIM_BASE"].dt.date >= data_ini)
+                (df_filtrado["DATA_INICIO_BASE"] >= inicio_periodo) &
+                (df_filtrado["DATA_INICIO_BASE"] <= fim_periodo)
                 ]
     # =====================================================
     # FILTRO POR PÚBLICO PREVISTO (LOCAL CORRETO)
