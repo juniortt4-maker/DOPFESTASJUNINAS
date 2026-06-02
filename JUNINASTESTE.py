@@ -492,7 +492,26 @@ try:
                 (df_filtrado["DATA_INICIO_BASE"].dt.date <= data_fim) &
                 (df_filtrado["DATA_FIM_BASE"].dt.date >= data_ini)
                 ]
+    # =====================================================
+    # FILTRO POR PÚBLICO PREVISTO (LOCAL CORRETO)
+    # =====================================================
 
+    if coluna_publico and df_filtrado[coluna_publico].notna().any():
+        publico_min = int(df_filtrado[coluna_publico].min())
+        publico_max = int(df_filtrado[coluna_publico].max())
+
+        faixa_publico = st.sidebar.slider(
+            "FILTRAR PÚBLICO PREVISTO",
+            min_value=publico_min,
+            max_value=publico_max,
+            value=(publico_min, publico_max),
+            step=100
+        )
+
+        df_filtrado = df_filtrado[
+            (df_filtrado[coluna_publico] >= faixa_publico[0]) &
+            (df_filtrado[coluna_publico] <= faixa_publico[1])
+            ]
     if df_filtrado.empty:
         st.warning("NENHUM REGISTRO ENCONTRADO.")
         st.stop()
@@ -614,35 +633,7 @@ try:
         fig_mes = aplicar_estilo(fig_mes)
         st.plotly_chart(fig_mes, use_container_width=True, config={"locale": "pt-BR"})
 
-        # =====================================================
-        # FILTRO GLOBAL POR PÚBLICO (IMPACTA TUDO)
-        # =====================================================
 
-        df_base_publico = df_filtrado_final.copy()
-
-        if coluna_publico and df_base_publico[coluna_publico].notna().any():
-
-            st.subheader("🎚️ FILTRO POR PÚBLICO PREVISTO")
-
-            publico_min = int(df_base_publico[coluna_publico].min())
-            publico_max = int(df_base_publico[coluna_publico].max())
-
-            faixa_publico = st.slider(
-                "Selecione a faixa de público",
-                min_value=publico_min,
-                max_value=publico_max,
-                value=(publico_min, publico_max),
-                step=100,
-                key="filtro_publico_global"
-            )
-
-            df_filtrado_final = df_base_publico[
-                (df_base_publico[coluna_publico] >= faixa_publico[0]) &
-                (df_base_publico[coluna_publico] <= faixa_publico[1])
-                ].copy()
-
-        else:
-            df_filtrado_final = df_base_publico.copy()
         # =====================================================
         # INDICADORES
         # =====================================================
