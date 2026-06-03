@@ -1556,14 +1556,58 @@ try:
     )
 
     tabela_base = df_filtrado_final.copy()
+    # =====================================================
+    # ✅ FORMATAÇÃO DO PÚBLICO (CORREÇÃO DEFINITIVA)
+    # =====================================================
 
-    if pesquisa:
-        tabela_base = tabela_base[
-            tabela_base.astype(str)
-            .apply(lambda x: x.str.contains(pesquisa, case=False, na=False))
-            .any(axis=1)
-        ]
+    if coluna_publico and coluna_publico in tabela_base.columns:
+        tabela_base[coluna_publico] = (
+            pd.to_numeric(tabela_base[coluna_publico], errors="coerce")
+            .fillna(0)
+            .astype(int)
+            .apply(lambda x: f"{x:,}".replace(",", "."))
+        )
 
+    # =====================================================
+    # ✅ FORMATAÇÃO ROBUSTA TELEFONE / CELULAR
+    # =====================================================
+
+    def formatar_telefone_br(valor):
+        if pd.isna(valor):
+            return ""
+
+        # transforma em string limpa
+        s = str(valor).strip()
+
+        # remove .0 de números vindos como float
+        if s.endswith(".0"):
+            s = s[:-2]
+
+        # remove tudo que não for número
+        s = re.sub(r"\D", "", s)
+
+        # remove código país se vier (55)
+        if s.startswith("55") and len(s) > 11:
+            s = s[2:]
+
+        # formatação padrão BR
+        if len(s) == 11:
+            return f"({s[:2]}) {s[2:7]}-{s[7:]}"
+        elif len(s) == 10:
+            return f"({s[:2]}) {s[2:6]}-{s[6:]}"
+        else:
+            return s  # mantém bruto se não reconhecido
+
+
+    # =====================================================
+    # ✅ APLICAR EM TODAS AS COLUNAS DE CONTATO
+    # =====================================================
+
+    for col in tabela_base.columns:
+        col_norm = normalizar_texto(col)
+
+        if "CELULAR" in col_norm or "TELEFONE" in col_norm:
+            tabela_base[col] = tabela_base[col].apply(formatar_telefone_br)
     # =====================================================
     # EXIBIÇÃO COM CORES
     # =====================================================
