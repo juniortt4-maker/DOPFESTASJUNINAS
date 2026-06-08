@@ -496,20 +496,27 @@ try:
                 (df_filtrado["DATA_INICIO_BASE"] <= fim_periodo)
                 ]
     # =====================================================
-    # FILTRO POR PÚBLICO PREVISTO (LOCAL CORRETO)
+    # FILTRO POR PÚBLICO PREVISTO
     # =====================================================
 
     if coluna_publico and df_filtrado[coluna_publico].notna().any():
         publico_min = int(df_filtrado[coluna_publico].min())
         publico_max = int(df_filtrado[coluna_publico].max())
 
-        faixa_publico = st.sidebar.slider(
-            "FILTRAR PÚBLICO PREVISTO",
-            min_value=publico_min,
-            max_value=publico_max,
-            value=(publico_min, publico_max),
-            step=100
-        )
+        if publico_min == publico_max:
+            st.sidebar.info(
+                f"PÚBLICO PREVISTO FIXO: {publico_min:,}".replace(",", ".")
+            )
+            faixa_publico = (publico_min, publico_max)
+        else:
+            passo_slider = max(1, int((publico_max - publico_min) / 100))
+            faixa_publico = st.sidebar.slider(
+                "FILTRAR PÚBLICO PREVISTO",
+                min_value=publico_min,
+                max_value=publico_max,
+                value=(publico_min, publico_max),
+                step=passo_slider
+            )
 
         df_filtrado = df_filtrado[
             (df_filtrado[coluna_publico] >= faixa_publico[0]) &
